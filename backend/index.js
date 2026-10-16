@@ -507,6 +507,12 @@ app.get("/api/prices", async (req, res) => {
       cached("yarn", fetchYarnPrices),
     ]);
 
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        console.error(`[prices] ${i === 0 ? "agmarknet" : "yarn"} failed:`, r.reason?.message);
+      }
+    });
+
     const successful = results
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value);
@@ -547,11 +553,11 @@ app.get("/api/prices", async (req, res) => {
       updatedAt: new Date().toISOString(),
       stale: successful.some((result) => result.stale),
 
-      sources: successful.map((result, index) => ({
-        id: index === 0 ? "agmarknet" : "yarn",
-        cached: result.cached,
-        stale: result.stale,
-        count: result.data.length,
+      sources: results.map((r, i) => ({
+        id: i === 0 ? "agmarknet" : "yarn",
+        ok: r.status === "fulfilled",
+        error: r.status === "rejected" ? r.reason?.message : undefined,
+        count: r.status === "fulfilled" ? r.value.data.length : 0,
       })),
 
       meta: {
