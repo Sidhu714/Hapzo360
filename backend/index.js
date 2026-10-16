@@ -1,5 +1,6 @@
 import express from "express";
 import "dotenv/config";
+import cors from "cors"
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -23,6 +24,17 @@ const ALL_TRENDS_LIMIT = 12;
 
 const cache = new Map();
 const STATE = "Tamil Nadu";
+
+
+app.use(cors({
+  origin: [
+    "https://hapzo360.netlify.app",
+    "http://localhost:5173",
+  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
 
 const FEEDS = {
   manufacturing: {
