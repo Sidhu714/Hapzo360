@@ -258,15 +258,32 @@ async function fetchAgriculturalPrices() {
 
   const url =
     `https://api.data.gov.in/resource/` +
-    `${encodeURIComponent(AGMARKNET_RESOURCE_ID)}?${params}`;
+    `${encodeURIComponent(AGMARKNET_RESOURCE_ID.trim())}?${params}`;
 
   const body = await fetchJson(url);
-  const records = Array.isArray(body.records) ? body.records : [];
 
-  return records
+  // data.gov.in reports bad keys / resource ids inside the body, often with HTTP 200
+  if (!Array.isArray(body.records)) {
+    throw new Error(
+      `data.gov.in: ${body.message || body.error || "unexpected response"}`
+    );
+  }
+
+  const items = body.records
     .map(normalizeCommodity)
     .filter(Boolean)
     .filter((item) => item.location.toLowerCase() === STATE.toLowerCase());
+
+  if (items.length === 0) {
+    console.warn(
+      `[prices] data.gov.in sent ${body.records.length} records (total ${body.total}) ` +
+        `but 0 were usable for ${STATE}. First record:`,
+      JSON.stringify(body.records[0] ?? null)
+    );
+    throw new Error("No usable price records");
+  }
+
+  return items;
 }
 
 // --------------------------------------------------
