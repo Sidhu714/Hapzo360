@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
   Factory,
-  Newspaper,
   Search,
   Shirt,
   Sparkles,
@@ -12,6 +13,7 @@ import {
   Truck,
   Wrench,
 } from "lucide-react";
+import API_BASE_URL from "../../config/api";
 
 // `key` must match the keys in FEEDS inside your Express trends server.
 const DOMAINS = [
@@ -51,6 +53,8 @@ const DOMAIN_BY_KEY = Object.fromEntries(
   DOMAINS.map((domain) => [domain.key, domain])
 );
 
+const PAGE_SIZES = [9, 12, 24, 48];
+
 function timeAgo(iso) {
   if (!iso) return "";
 
@@ -88,7 +92,7 @@ function useTrends(domainKey, attempt) {
       country: "in",
     });
 
-    fetch(`/api/trends?${params}`, {
+    fetch(`${API_BASE_URL}/api/trends?${params}`, {
       signal: controller.signal,
     })
       .then((response) => {
@@ -343,30 +347,168 @@ function TrendsHero({ articles, loading }) {
   );
 }
 
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+  totalItems,
+  pageSize,
+  onPageSizeChange,
+}) {
+  const pageNumbers = [];
+
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    if (
+      pageNumber === 1 ||
+      pageNumber === totalPages ||
+      Math.abs(pageNumber - page) <= 1
+    ) {
+      pageNumbers.push(pageNumber);
+    }
+  }
+
+  const startIndex = (page - 1) * pageSize + 1;
+  const endIndex = Math.min(page * pageSize, totalItems);
+
+  return (
+    <div className="mt-8 flex flex-col gap-4 rounded-[24px] border border-[#e3e8dc] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+        <span>
+          Showing{" "}
+          <span className="font-bold text-[#20372a]">{startIndex}</span>
+          –
+          <span className="font-bold text-[#20372a]">{endIndex}</span> of{" "}
+          <span className="font-bold text-[#20372a]">{totalItems}</span>{" "}
+          stories
+        </span>
+
+        <select
+          value={pageSize}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+          aria-label="Stories per page"
+          className="rounded-lg border border-[#e3e8dc] bg-[#fbfcf8] px-2 py-1.5 text-xs outline-none focus:border-[#8da76e]"
+        >
+          {PAGE_SIZES.map((size) => (
+            <option key={size} value={size}>
+              {size} / page
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onPageChange(1)}
+          disabled={page === 1}
+          className="rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+        >
+          First
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page === 1}
+          className="inline-flex items-center gap-1 rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+        >
+          <ChevronLeft size={14} />
+          Prev
+        </button>
+
+        {pageNumbers.map((pageNumber, index) => (
+          <span key={pageNumber} className="flex items-center gap-1.5">
+            {index > 0 && pageNumbers[index - 1] !== pageNumber - 1 && (
+              <span className="px-1 text-stone-400">…</span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => onPageChange(pageNumber)}
+              className={`min-w-8 rounded-lg px-2.5 py-2 text-xs font-bold transition ${
+                pageNumber === page
+                  ? "bg-[#20372a] text-white"
+                  : "border border-[#dce4d4] bg-white text-[#20372a] hover:bg-[#f1f4eb]"
+              }`}
+            >
+              {pageNumber}
+            </button>
+          </span>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          disabled={page === totalPages}
+          className="inline-flex items-center gap-1 rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+        >
+          Next
+          <ChevronRight size={14} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onPageChange(totalPages)}
+          disabled={page === totalPages}
+          className="rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+        >
+          Last
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TrendsPage() {
   const [activeKey, setActiveKey] = useState("all");
   const [search, setSearch] = useState("");
   const [attempt, setAttempt] = useState(0);
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+
   const { articles, loading, error } = useTrends(activeKey, attempt);
 
   const query = search.trim().toLowerCase();
 
-  const filteredTrends = articles.filter((article) => {
-    if (!query) return true;
+  const filteredTrends = useMemo(() => {
+    return articles.filter((article) => {
+      if (!query) return true;
 
-    const searchable = [
-      article.title,
-      article.description,
-      article.source,
-      article.domain,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+      const searchable = [
+        article.title,
+        article.description,
+        article.source,
+        article.domain,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-    return searchable.includes(query);
-  });
+      return searchable.includes(query);
+    });
+  }, [articles, query]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredTrends.length / pageSize)
+  );
+
+  const visibleTrends = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+
+    return filteredTrends.slice(startIndex, startIndex + pageSize);
+  }, [filteredTrends, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeKey, search, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   return (
     <main className="bg-[#fbfcf8] text-[#20372a]">
@@ -448,79 +590,90 @@ export default function TrendsPage() {
         )}
 
         {/* Articles */}
-        {!loading && !error && (
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTrends.map((article, index) => {
-              const domain =
-                DOMAIN_BY_KEY[article.domain] ?? DOMAINS[0];
+        {!loading && !error && filteredTrends.length > 0 && (
+          <>
+            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleTrends.map((article, index) => {
+                const domain =
+                  DOMAIN_BY_KEY[article.domain] ?? DOMAINS[0];
 
-              const featured = index === 0 && activeKey === "all";
+                const featured = page === 1 && index === 0 && activeKey === "all";
 
-              return (
-                <article
-                  key={article.id ?? article.link}
-                  className={`group overflow-hidden rounded-[24px] border border-[#e3e8dc] bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#20372a]/[.06] ${
-                    featured ? "lg:col-span-2" : ""
-                  }`}
-                >
-                  <div
-                    className={`relative overflow-hidden ${
-                      featured ? "h-60 sm:h-72" : "h-48"
+                return (
+                  <article
+                    key={article.id ?? article.link}
+                    className={`group overflow-hidden rounded-[24px] border border-[#e3e8dc] bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#20372a]/[.06] ${
+                      featured ? "lg:col-span-2" : ""
                     }`}
                   >
-                    <ArticleImage src={article.image} domain={domain} />
+                    <div
+                      className={`relative overflow-hidden ${
+                        featured ? "h-60 sm:h-72" : "h-48"
+                      }`}
+                    >
+                      <ArticleImage src={article.image} domain={domain} />
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#172b20]/65 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#172b20]/65 to-transparent" />
 
-                    {article.source && (
-                      <span className="absolute left-4 top-4 max-w-[70%] truncate rounded-full bg-[#fbfcf8] px-3 py-1.5 text-[11px] font-bold text-[#315844]">
-                        {article.source}
-                      </span>
-                    )}
-
-                    <span className="absolute bottom-4 left-4 grid h-10 w-10 place-items-center rounded-xl bg-[#d4e99b] text-[#20372a]">
-                      <domain.icon size={18} />
-                    </span>
-                  </div>
-
-                  <div className="p-5">
-                    <p className="text-xs font-bold uppercase tracking-[.12em] text-[#66806c]">
-                      {domain.label}
-
-                      {article.publishedAt && (
-                        <span className="ml-2 font-medium normal-case tracking-normal text-stone-400">
-                          {timeAgo(article.publishedAt)}
+                      {article.source && (
+                        <span className="absolute left-4 top-4 max-w-[70%] truncate rounded-full bg-[#fbfcf8] px-3 py-1.5 text-[11px] font-bold text-[#315844]">
+                          {article.source}
                         </span>
                       )}
-                    </p>
 
-                    <h3 className="mt-2 line-clamp-3 text-lg font-extrabold leading-snug tracking-tight">
-                      {article.title}
-                    </h3>
+                      <span className="absolute bottom-4 left-4 grid h-10 w-10 place-items-center rounded-xl bg-[#d4e99b] text-[#20372a]">
+                        <domain.icon size={18} />
+                      </span>
+                    </div>
 
-                    {article.description && (
-                      <p className="mt-2 line-clamp-2 text-xs leading-6 text-stone-500 sm:text-sm">
-                        {article.description}
+                    <div className="p-5">
+                      <p className="text-xs font-bold uppercase tracking-[.12em] text-[#66806c]">
+                        {domain.label}
+
+                        {article.publishedAt && (
+                          <span className="ml-2 font-medium normal-case tracking-normal text-stone-400">
+                            {timeAgo(article.publishedAt)}
+                          </span>
+                        )}
                       </p>
-                    )}
 
-                    <a
-                      href={article.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-[#315844] hover:text-[#6b8b42] sm:text-sm"
-                    >
-                      Read full article
-                      <ArrowUpRight
-                        size={16}
-                        className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                      />
-                    </a>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                      <h3 className="mt-2 line-clamp-3 text-lg font-extrabold leading-snug tracking-tight">
+                        {article.title}
+                      </h3>
+
+                      {article.description && (
+                        <p className="mt-2 line-clamp-2 text-xs leading-6 text-stone-500 sm:text-sm">
+                          {article.description}
+                        </p>
+                      )}
+
+                      <a
+                        href={article.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-[#315844] hover:text-[#6b8b42] sm:text-sm"
+                      >
+                        Read full article
+                        <ArrowUpRight
+                          size={16}
+                          className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                        />
+                      </a>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={filteredTrends.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </>
         )}
 
         {/* No results */}

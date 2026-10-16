@@ -3,13 +3,14 @@ import {
   ArrowDownToLine,
   ArrowUpDown,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   RefreshCw,
   Search,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-
-const API_URL = "/api/prices";
+import { getPrices } from "../../services/mandiPrices";
 
 const CATEGORIES = [
   { value: "all", label: "All commodities" },
@@ -31,6 +32,8 @@ const LOCATIONS = [
   "Thanjavur",
   "Tiruchirappalli",
 ];
+
+const PAGE_SIZES = [10, 25, 50, 100];
 
 const numberFormat = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 2,
@@ -200,6 +203,9 @@ export default function PriceList() {
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const [state, setState] = useState({
     items: [],
     loading: true,
@@ -217,33 +223,13 @@ export default function PriceList() {
         error: "",
       }));
 
-      const params = new URLSearchParams({
-        category,
-        priceType: "wholesale",
-        location,
-      });
-
-      if (search.trim()) {
-        params.set("search", search.trim());
-      }
-
       try {
-        const response = await fetch(`${API_URL}?${params.toString()}`, {
+        const data = await getPrices({
+          category,
+          location,
+          search,
           signal: controller.signal,
-          headers: {
-            Accept: "application/json",
-          },
         });
-
-        if (!response.ok) {
-          throw new Error(
-            response.status === 404
-              ? "The price API has not been connected yet. Add the /api/prices backend endpoint to display verified prices."
-              : `Unable to retrieve prices (HTTP ${response.status}). Please try again.`
-          );
-        }
-
-        const data = await response.json();
 
         if (!Array.isArray(data.items)) {
           throw new Error(
@@ -276,7 +262,7 @@ export default function PriceList() {
     return () => controller.abort();
   }, [category, location, search, refreshKey]);
 
-  const items = useMemo(() => {
+  const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return state.items.filter((item) => {
@@ -292,14 +278,33 @@ export default function PriceList() {
         item.yarnType,
       ]
         .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(term)
-        );
+        .some((value) => String(value).toLowerCase().includes(term));
     });
   }, [state.items, search]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredItems.length / pageSize)
+  );
+
+  const items = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredItems, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [category, location, search, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   function exportCsv() {
-    if (!items.length) return;
+    if (!filteredItems.length) return;
 
     const columns = [
       ["Commodity", "name"],
@@ -321,7 +326,7 @@ export default function PriceList() {
 
     const csv = [
       columns.map(([label]) => escapeCsv(label)).join(","),
-      ...items.map((item) =>
+      ...filteredItems.map((item) =>
         columns
           .map(([, key]) => escapeCsv(item[key]))
           .join(",")
@@ -344,6 +349,22 @@ export default function PriceList() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function getPageNumbers() {
+    const pages = [];
+
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+      if (
+        pageNumber === 1 ||
+        pageNumber === totalPages ||
+        Math.abs(pageNumber - page) <= 1
+      ) {
+        pages.push(pageNumber);
+      }
+    }
+
+    return pages;
   }
 
   return (
@@ -383,7 +404,7 @@ export default function PriceList() {
                 </p>
 
                 <p className="mt-1 text-2xl font-extrabold text-white">
-                  {state.loading ? "—" : items.length}
+                  {state.loading ? "—" : filteredItems.length}
                 </p>
               </div>
 
@@ -434,7 +455,7 @@ export default function PriceList() {
             <button
               type="button"
               onClick={exportCsv}
-              disabled={!items.length}
+              disabled={!filteredItems.length}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[#20372a] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#315844] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ArrowDownToLine size={16} />
@@ -512,7 +533,8 @@ export default function PriceList() {
             </span>
 
             <span>
-              {items.length} result{items.length === 1 ? "" : "s"}
+              {filteredItems.length} result
+              {filteredItems.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
@@ -526,7 +548,7 @@ export default function PriceList() {
 
         {/* Error */}
         {!state.loading && state.error && (
-          <div className="mt-6 rounded-[24px] border border-dashed border-[#cbd7c1] bg-white px-6 py-14 text-center">
+          <div className="mt-6 rounded-[24px] border-dashed border-[#cbd7c1] bg-white px-6 py-14 text-center">
             <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[#eaf1df] text-[#315844]">
               <ArrowUpDown size={22} />
             </div>
@@ -550,7 +572,7 @@ export default function PriceList() {
         )}
 
         {/* Results */}
-        {!state.loading && !state.error && items.length > 0 && (
+        {!state.loading && !state.error && filteredItems.length > 0 && (
           <div className="mt-6 overflow-hidden rounded-[24px] border border-[#e3e8dc] bg-white">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px] border-collapse text-left">
@@ -647,6 +669,109 @@ export default function PriceList() {
               </table>
             </div>
 
+            {/* Pagination */}
+            <div className="flex flex-col gap-3 border-t border-[#edf0e8] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+                <span>
+                  Showing{" "}
+                  <span className="font-bold text-[#20372a]">
+                    {(page - 1) * pageSize + 1}
+                  </span>
+                  –
+                  <span className="font-bold text-[#20372a]">
+                    {Math.min(page * pageSize, filteredItems.length)}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-bold text-[#20372a]">
+                    {filteredItems.length}
+                  </span>{" "}
+                  records
+                </span>
+
+                <select
+                  value={pageSize}
+                  onChange={(event) =>
+                    setPageSize(Number(event.target.value))
+                  }
+                  className="rounded-lg border border-[#e3e8dc] bg-[#fbfcf8] px-2 py-1.5 text-xs outline-none focus:border-[#8da76e]"
+                >
+                  {PAGE_SIZES.map((size) => (
+                    <option key={size} value={size}>
+                      {size} / page
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPage(1)}
+                  disabled={page === 1}
+                  className="rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+                >
+                  First
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((value) => Math.max(1, value - 1))
+                  }
+                  disabled={page === 1}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} />
+                  Prev
+                </button>
+
+                {getPageNumbers().map((pageNumber, index, pages) => (
+                  <span
+                    key={pageNumber}
+                    className="flex items-center gap-1.5"
+                  >
+                    {index > 0 &&
+                      pages[index - 1] !== pageNumber - 1 && (
+                        <span className="px-1 text-stone-400">…</span>
+                      )}
+
+                    <button
+                      type="button"
+                      onClick={() => setPage(pageNumber)}
+                      className={`min-w-8 rounded-lg px-2.5 py-2 text-xs font-bold transition ${
+                        pageNumber === page
+                          ? "bg-[#20372a] text-white"
+                          : "border border-[#dce4d4] bg-white text-[#20372a] hover:bg-[#f1f4eb]"
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  </span>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((value) => Math.min(totalPages, value + 1))
+                  }
+                  disabled={page === totalPages}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPage(totalPages)}
+                  disabled={page === totalPages}
+                  className="rounded-lg border border-[#dce4d4] bg-white px-3 py-2 text-xs font-bold transition hover:bg-[#f1f4eb] disabled:opacity-40"
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+
             <div className="border-t border-[#edf0e8] px-5 py-4 text-xs leading-6 text-stone-500">
               Prices are wholesale mandi rates supplied by the listed source.
               Check the unit, market date and source before making a purchase
@@ -656,8 +781,8 @@ export default function PriceList() {
         )}
 
         {/* Empty state */}
-        {!state.loading && !state.error && items.length === 0 && (
-          <div className="mt-6 rounded-[24px] border border-dashed border-[#cbd7c1] bg-white px-6 py-16 text-center">
+        {!state.loading && !state.error && filteredItems.length === 0 && (
+          <div className="mt-6 rounded-[24px] border-dashed border-[#cbd7c1] bg-white px-6 py-16 text-center">
             <Search size={28} className="mx-auto text-stone-400" />
 
             <h3 className="mt-4 font-extrabold">
