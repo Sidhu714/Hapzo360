@@ -1,9 +1,7 @@
-import { Briefcase, CalendarDays, LayoutGrid, Users } from 'lucide-react';
-import { CATEGORIES, JOB_TYPES } from '../../config';
+import { CalendarDays } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
-const GENDER_FILTERS = ['men', 'women'];
-const DATES = [['week', 'filters.pastWeek'], ['month', 'filters.pastMonth'], ['all', 'filters.all']];
+const DATES = [['day', 'filters.pastDay'], ['week', 'filters.pastWeek'], ['month', 'filters.pastMonth'], ['all', 'filters.all']];
 
 function Group({ icon: Icon, title, children }) {
   return (
@@ -24,13 +22,8 @@ function Option({ type, checked, onChange, label, count }) {
   );
 }
 
-export default function FilterSidebar({ jobs, filters, onChange, onClear }) {
+export default function FilterSidebar({ filters, onChange, onClear }) {
   const { t } = useLanguage();
-  const n = (fn) => jobs.filter(fn).length;
-  const toggle = (key, v) => onChange({
-    ...filters,
-    [key]: filters[key].includes(v) ? filters[key].filter((x) => x !== v) : [...filters[key], v],
-  });
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
@@ -42,17 +35,6 @@ export default function FilterSidebar({ jobs, filters, onChange, onClear }) {
         {DATES.map(([v, k]) => <Option key={v} type="radio" label={t(k)} checked={filters.date === v} onChange={() => onChange({ ...filters, date: v })} />)}
       </Group>
 
-      <Group icon={Briefcase} title={t('filters.type')}>
-        {JOB_TYPES.map((v) => <Option key={v} type="checkbox" label={t(`type.${v}`)} count={n((j) => j.jobType === v)} checked={filters.types.includes(v)} onChange={() => toggle('types', v)} />)}
-      </Group>
-
-      <Group icon={Users} title={t('filters.gender')}>
-        {GENDER_FILTERS.map((v) => <Option key={v} type="checkbox" label={t(`gender.${v}`)} count={n((j) => j.gender === v || j.gender === 'any')} checked={filters.genders.includes(v)} onChange={() => toggle('genders', v)} />)}
-      </Group>
-
-      <Group icon={LayoutGrid} title={t('filters.category')}>
-        {CATEGORIES.map((v) => <Option key={v} type="checkbox" label={t(`cat.${v}`)} count={n((j) => j.category === v)} checked={filters.categories.includes(v)} onChange={() => toggle('categories', v)} />)}
-      </Group>
     </div>
   );
 }

@@ -1,0 +1,121 @@
+.post-page {
+  --opening-base: #1b0a12;
+  --opening-main: #c2411f;
+  --opening-glow: #ffb04d;
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+  background:
+    radial-gradient(60% 45% at 92% 0%, rgb(255 176 77 / 30%), transparent 70%),
+    radial-gradient(55% 45% at 0% 100%, rgb(214 51 108 / 30%), transparent 70%),
+    linear-gradient(135deg, #1b0a12 0%, #4a1320 38%, #8f2b1d 76%, #c2411f 100%);
+}
+
+.post-opening-backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.post-opening-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgb(255 255 255 / 5.5%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 4.5%) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(ellipse at 70% 12%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse at 70% 12%, #000 0%, transparent 72%);
+}
+.post-opening-blob { position: absolute; border-radius: 9999px; filter: blur(90px); }
+.post-opening-blob--a { top: -10%; right: -8%; width: 560px; height: 560px; background: #ff8a3d; opacity: .28; animation: post-opening-drift 18s ease-in-out infinite alternate; }
+.post-opening-blob--b { bottom: -14%; left: -10%; width: 620px; height: 620px; background: #d6336c; opacity: .26; animation: post-opening-drift 24s ease-in-out infinite alternate-reverse; }
+@keyframes post-opening-drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(-60px, 50px) scale(1.12); } }
+
+.post-page .post-shell { position: relative; z-index: 10; }
+.post-page .page-hero {
+  background:
+    radial-gradient(ellipse at 88% 8%, rgb(255 176 77 / 25%), transparent 36%),
+    linear-gradient(115deg, #1b0a12 0%, #4a1320 54%, #8f2b1d 100%);
+  box-shadow: 0 24px 55px rgb(94 23 16 / 18%), inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+.post-page.expired-jobs-page .page-hero {
+  background:
+    radial-gradient(ellipse at 88% 8%, rgb(255 176 77 / 18%), transparent 36%),
+    linear-gradient(115deg, rgb(27 10 18 / 68%) 0%, rgb(74 19 32 / 66%) 54%, rgb(143 43 29 / 68%) 100%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 24px 55px rgb(27 10 18 / 24%), inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+.post-page .page-hero::after {
+  border-color: rgb(255 176 77 / 38%);
+  box-shadow: 0 0 0 32px rgb(255 176 77 / 8%), 0 0 0 70px rgb(255 176 77 / 4%);
+}
+.post-page .page-kicker { color: var(--opening-glow); }
+.post-page .page-hero > p:not(.page-kicker) { color: rgb(255 248 238 / 82%); }
+.post-page .surface-card { border-color: #ecd9ce; box-shadow: 0 16px 42px rgb(94 23 16 / 8%); }
+.post-page.expired-jobs-page h2,
+.post-page.expired-jobs-page h3 { color: var(--opening-base); }
+.post-page .post-hero {
+  background:
+    radial-gradient(ellipse at 88% 8%, rgb(255 176 77 / 18%), transparent 36%),
+    linear-gradient(115deg, rgb(27 10 18 / 68%) 0%, rgb(74 19 32 / 66%) 54%, rgb(143 43 29 / 68%) 100%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 24px 55px rgb(27 10 18 / 24%), inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+.post-page .post-hero::before {
+  background: radial-gradient(ellipse at 10% 100%, rgb(214 51 108 / 23%), transparent 40%);
+}
+.post-page .post-kicker,
+.post-page .post-trust svg { color: var(--opening-glow); }
+.post-page .post-hero h1 span { color: #ffca75; }
+.post-page .post-art-ring { border-color: rgb(255 176 77 / 28%); }
+.post-page .post-art-card { box-shadow: 0 18px 40px rgb(50 16 11 / 35%); }
+.post-page .post-art-icon { background: #ffeadb; color: var(--opening-base); }
+.post-page .post-art-tags i { background: #f4d4c5; }
+.post-page .post-art-bottom b,
+.post-page .post-art-dot { background: var(--opening-glow); }
+.post-page .post-art-bottom span { background: var(--opening-main); }
+
+.post-page .post-sidebar {
+  border-color: #ecd9ce;
+  background: #fff7f1;
+  box-shadow: 0 12px 30px rgb(94 23 16 / 7%);
+}
+.post-page .post-eyebrow,
+.post-page .post-price-note > span { color: #a25135; }
+.post-page .post-sidebar h2,
+.post-page .post-price-note strong { color: var(--opening-base); }
+.post-page .post-step-list { border-color: #ead8ce; }
+.post-page .post-step-list li.active { color: var(--opening-base); }
+.post-page .post-step-list li.active .post-step-icon { border-color: var(--opening-main); background: var(--opening-main); }
+.post-page .post-price-note strong { color: var(--opening-main); }
+
+.post-page .post-panel { border-color: #ecd9ce; box-shadow: 0 16px 42px rgb(94 23 16 / 9%); }
+.post-page .post-panel-top { border-color: #f2e8e2; }
+.post-page .post-language-label { background: #fff0e4; color: #80301f; }
+.post-page .post-form-icon { background: #fff0e4; color: var(--opening-main); }
+.post-page .post-inline-note { background: #fff3e6; color: #765643; }
+.post-page .post-inline-note svg { color: #c15b35; }
+.post-page .post-company-chip { border-color: #efdcd1; background: #fff8f3; }
+
+.post-page .input:focus,
+.post-page input:focus-visible,
+.post-page textarea:focus-visible,
+.post-page select:focus-visible {
+  border-color: var(--opening-main);
+  box-shadow: 0 0 0 4px rgb(255 176 77 / 24%);
+  outline-color: var(--opening-main);
+}
+.post-page .btn-primary { background: var(--opening-main); box-shadow: 0 6px 16px rgb(217 72 43 / 24%); }
+.post-page .btn-primary:hover { background: var(--opening-base); }
+.post-page .btn-outline { border-color: #ead8cd; color: #7c261b; }
+.post-page .btn-outline:hover { border-color: var(--opening-glow); background: #fff7ed; }
+.post-page label > span > button { color: #a25135; }
+.post-page .post-success-icon { background: #fff0e4; color: var(--opening-main); }
+.post-page .post-success h1 { color: var(--opening-base); }
+
+@media (max-width: 760px) {
+  .post-page .post-hero { box-shadow: 0 16px 36px rgb(94 23 16 / 16%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-opening-blob { animation: none !important; }
+}

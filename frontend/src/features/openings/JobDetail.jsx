@@ -10,7 +10,13 @@ function Row({ label, children }) {
 
 export default function JobDetail({ job, onClose, onApply }) {
   const { t, lang } = useLanguage();
-  const v = useTranslatedJob(job);
+  // Older listings included a `Contact:` sentence in the public description.
+  // Remove it before translation as well as display so it cannot leak there.
+  const publicJob = {
+    ...job,
+    description: (job.description || '').replace(/(?:^|\s)Contact:\s*[^.]*\.?/gi, ' ').trim(),
+  };
+  const v = useTranslatedJob(publicJob);
   return (
     <Modal wide title={v.title} onClose={onClose}>
       <div className="mb-4 flex items-center gap-3">

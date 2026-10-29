@@ -1,0 +1,67 @@
+.openings-page {
+  --opening-base: #5e1710;
+  --opening-main: #d9482b;
+  --opening-glow: #ffb04d;
+  --opening-rose: #d6336c;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 44% 30% at 94% 5%, rgb(255 176 77 / 30%), transparent 74%),
+    radial-gradient(ellipse 40% 34% at 6% 74%, rgb(214 51 108 / 14%), transparent 76%),
+    linear-gradient(135deg, #fff4eb 0%, #f8e9de 52%, #efd8ca 100%);
+}
+
+.openings-page .page-hero {
+  background:
+    radial-gradient(ellipse at 88% 8%, rgb(255 176 77 / 25%), transparent 38%),
+    linear-gradient(115deg, #5e1710 0%, #8d291e 54%, #d9482b 100%);
+  box-shadow: 0 24px 55px rgb(94 23 16 / 18%), inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+
+.openings-page .page-hero::after {
+  border-color: rgb(255 176 77 / 38%);
+  box-shadow: 0 0 0 32px rgb(255 176 77 / 8%), 0 0 0 70px rgb(255 176 77 / 4%);
+}
+
+.openings-page .page-kicker { color: var(--opening-glow); }
+.openings-page .page-hero > p:not(.page-kicker) { color: rgb(255 248 238 / 82%); }
+
+.openings-page #openings-search,
+.openings-page #openings-district {
+  border-color: #efddd4;
+}
+
+.openings-page #openings-search:focus,
+.openings-page #openings-district:focus {
+  border-color: var(--opening-main);
+  box-shadow: 0 0 0 4px rgb(255 176 77 / 24%);
+}
+
+.openings-page .btn-primary {
+  background: var(--opening-main);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(217 72 43 / 25%);
+}
+
+.openings-page .btn-primary:hover { background: var(--opening-base); }
+.openings-page .btn-outline { border-color: #ecd8cf; color: #7c261b; }
+.openings-page .btn-outline:hover { border-color: var(--opening-glow); background: #fff7ed; }
+
+.openings-page article.group {
+  border-color: #f0e3dc;
+  box-shadow: 0 10px 26px rgb(49 14 10 / 8%);
+}
+
+.openings-page article.group:hover {
+  border-color: rgb(217 72 43 / 55%);
+  box-shadow: 0 18px 34px rgb(49 14 10 / 16%);
+}
+
+.openings-page article.group h3 { color: var(--opening-base); }
+.openings-page article.group .border-t { border-color: #f2e5df; }
+.openings-page article.group .group-hover\:text-\[\#315844\] { color: var(--opening-main); }
+.openings-page aside > div > div > button { color: #a93422; }
+.openings-page .mb-5 > p.text-sm.font-semibold { color: #713023; }
+.openings-page .tag-brand { background: #fff1e8; color: #7c261b; }
+.openings-page .tag { background: #f6f0ed; color: #65544e; }
+.openings-page .radio:checked { border-color: var(--opening-main); }
+.openings-page .check:checked { border-color: var(--opening-main); background: var(--opening-main); }

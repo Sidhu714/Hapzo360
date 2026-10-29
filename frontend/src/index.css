@@ -20,6 +20,15 @@
 
 html { scroll-behavior: smooth; }
 @layer base { body { @apply bg-[#f7f8f2] text-[#26372d] antialiased; } }
+.home-card-title {
+  font-family: "Archivo Black", "Plus Jakarta Sans", "Noto Sans Tamil", "Noto Sans Devanagari", system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+.logo-360 {
+  display: inline-block;
+}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -93,6 +102,7 @@ body { background: #f7f8f2; }
 button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
 button, a { transition-timing-function: cubic-bezier(.2,.75,.25,1); }
 .page-shell { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
+.openings-page { min-height: 100vh; background: #aeeed3; }
 .page-hero { position: relative; overflow: hidden; isolation: isolate; border-radius: 28px; background: #182b27; color: #f8f8f0; }
 .page-hero::after { content: ''; position: absolute; z-index: -1; width: 340px; height: 340px; right: -100px; top: -155px; border: 1px solid #d4e99b35; border-radius: 50%; box-shadow: 0 0 0 32px #d4e99b0a, 0 0 0 70px #d4e99b08; }
 .page-kicker { display: inline-flex; align-items: center; gap: 8px; color: #b9d77a; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
@@ -108,7 +118,33 @@ button, a { transition-timing-function: cubic-bezier(.2,.75,.25,1); }
 .input { border-color: #dfe5dc; border-radius: 12px; background: #fff; }
 .input:focus { border-color: #668b63; box-shadow: 0 0 0 4px #e7efdc; }
 header { border-color: #e3e8dc !important; }
+header .logo-wordmark { font-family: "Ethnocentric", "Archivo Black", "Plus Jakarta Sans", sans-serif; font-weight: 800; letter-spacing: -.025em; }
+.navbar--openings { border-color: rgb(255 176 77 / 18%) !important; background-color: rgb(43 12 19 / 78%); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.navbar--openings a { text-shadow: 0 1px 5px rgb(0 0 0 / 48%); }
+.navbar--openings .language-switcher { border-color: rgb(255 255 255 / 20%); background: rgb(255 255 255 / 8%); }
+.navbar--openings .language-switcher button:not(.language-switcher-active) { color: rgb(255 255 255 / 78%); }
+.navbar--openings .language-switcher button:not(.language-switcher-active):hover { color: #fff; background: rgb(255 255 255 / 10%); }
+.navbar--openings .language-switcher .language-switcher-active { background: #ffb04d; color: #43150f; }
+.navbar-openings-cta { background: #ffb04d !important; color: #43150f !important; box-shadow: 0 6px 18px rgb(255 176 77 / 24%); }
+.navbar-openings-cta:hover { background: #ffc779 !important; }
+.navbar--trends { border-color: rgb(255 255 255 / 14%) !important; background-color: rgb(5 47 42 / 56%); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.navbar--trends a { text-shadow: 0 1px 5px rgb(0 0 0 / 72%); }
+.navbar--price-list { border-color: rgb(255 255 255 / 14%) !important; background-color: rgb(43 7 32 / 58%); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.navbar--price-list a { text-shadow: 0 1px 5px rgb(0 0 0 / 72%); }
+.navbar--technology { border-color: rgb(255 255 255 / 14%) !important; background-color: rgb(8 24 35 / 78%); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.navbar--technology a { text-shadow: 0 1px 5px rgb(0 0 0 / 72%); }
+.navbar--happenings { border-color: rgb(17 25 47 / 14%) !important; background-color: rgb(255 230 109 / 92%); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 8px 28px rgb(17 25 47 / 8%); }
+.navbar--happenings a { text-shadow: none; }
+.navbar--happenings .language-switcher { border-color: rgb(17 25 47 / 18%); background: rgb(255 255 255 / 42%); }
+.navbar--happenings .language-switcher button:not(.language-switcher-active) { color: rgb(17 25 47 / 78%); }
+.navbar--happenings .language-switcher button:not(.language-switcher-active):hover { color: #11192f; background: rgb(255 255 255 / 58%); }
+.navbar--happenings .language-switcher .language-switcher-active { background: #11192f; color: #fff; }
+.language-switcher.language-switcher--dark { border-color: rgb(255 255 255 / 20%); background: rgb(255 255 255 / 8%); }
+.language-switcher--dark button:not(.language-switcher-active) { color: rgb(255 255 255 / 78%); }
+.language-switcher--dark button:not(.language-switcher-active):hover { color: #fff; background: rgb(255 255 255 / 10%); }
+.language-switcher--dark .language-switcher-active { background: rgb(255 255 255 / 19%); color: #fff; }
 .hapzo-footer { background: #182b27; color: #c4cec4; }
+.hapzo-footer--above-backdrop { position: relative; z-index: 30; isolation: isolate; background: #182b27; }
 .hapzo-footer a { color: #f5f7ef; }
 .hapzo-footer .footer-muted { color: #a2b0a2; }
 .job-card { border: 1px solid #e3e8dc; border-radius: 20px; background: #fff; transition: transform .2s, border-color .2s, box-shadow .2s; }

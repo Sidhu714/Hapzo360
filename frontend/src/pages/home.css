@@ -1,0 +1,788 @@
+
+
+/* ==================================================================
+   Hapzo360 Homepage
+   Existing cards preserved.
+   Refined ivory background with subtle animated circuit details.
+   ================================================================== */
+
+
+/* ==================================================================
+   Homepage background
+   ================================================================== */
+
+.home-page {
+  position: relative;
+  isolation: isolate;
+
+  background-color: #f6f5f1;
+
+  background-image:
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgb(255 255 255 / 96%) 0%,
+      rgb(255 255 255 / 44%) 36%,
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse at 100% 85%,
+      rgb(218 207 182 / 15%) 0%,
+      transparent 52%
+    ),
+    linear-gradient(
+      180deg,
+      #f8f7f4 0%,
+      #f3f2ed 58%,
+      #efeee8 100%
+    );
+}
+
+
+/* ==================================================================
+   Circuit backdrop
+   ================================================================== */
+
+.home-circuit-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+
+  display: block;
+  width: 100%;
+  height: 100%;
+
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 12%,
+    #000 76%,
+    transparent 100%
+  );
+
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 12%,
+    #000 76%,
+    transparent 100%
+  );
+}
+
+
+/* Fine, quiet circuit tracks */
+
+.home-circuit-rail {
+  fill: none;
+
+  stroke: rgb(66 75 69 / 12%);
+  stroke-width: 1;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  vector-effect: non-scaling-stroke;
+}
+
+
+/* Widely spaced, slow-moving current */
+
+.home-circuit-current {
+  fill: none;
+
+  stroke: #aa9671;
+  stroke-width: 1.5;
+  stroke-opacity: 0.48;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  stroke-dasharray: 10 230;
+
+  vector-effect: non-scaling-stroke;
+  filter: none;
+
+  animation: home-current-flow 12s linear infinite;
+}
+
+.home-circuit-current--slow {
+  stroke: #758779;
+  stroke-opacity: 0.3;
+
+  stroke-dasharray: 7 273;
+
+  animation-name: home-current-flow-slow;
+  animation-duration: 18s;
+  animation-delay: -6s;
+}
+
+.home-circuit-current:last-of-type {
+  animation-delay: -9s;
+}
+
+
+/* Subtle connection nodes */
+
+.home-circuit-nodes circle {
+  r: 2.5px;
+
+  fill: #a39374;
+  fill-opacity: 0.5;
+
+  stroke: #f6f5f1;
+  stroke-width: 1.2;
+
+  vector-effect: non-scaling-stroke;
+  filter: none;
+
+  transform-box: fill-box;
+  transform-origin: center;
+
+  animation: home-current-pulse 6s ease-in-out infinite;
+}
+
+.home-circuit-nodes circle:nth-child(2n) {
+  fill: #829184;
+  animation-delay: -3s;
+}
+
+.home-circuit-nodes circle:nth-child(3n) {
+  animation-delay: -1.5s;
+}
+
+
+/* Circuit animations */
+
+@keyframes home-current-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -240;
+  }
+}
+
+@keyframes home-current-flow-slow {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -280;
+  }
+}
+
+@keyframes home-current-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
+}
+
+
+/* ==================================================================
+   Card surfaces — original colours and treatments preserved
+   ================================================================== */
+
+.service-card {
+  isolation: isolate;
+
+  background:
+    radial-gradient(
+      70% 60% at 92% 100%,
+      color-mix(in srgb, var(--c-glow) 46%, transparent) 0%,
+      transparent 66%
+    ),
+    radial-gradient(
+      60% 55% at 0% 100%,
+      color-mix(in srgb, var(--c-mix) 42%, transparent) 0%,
+      transparent 70%
+    ),
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--c-base) 88%, transparent) 0%,
+      color-mix(in srgb, var(--c-mid) 86%, transparent) 100%
+    );
+
+  backdrop-filter: blur(2px);
+
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 30%),
+    0 26px 44px -30px var(--c-base);
+
+  transition:
+    box-shadow 300ms ease,
+    transform 300ms ease;
+}
+
+.service-card:hover,
+.service-card:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 40%),
+    0 34px 54px -26px var(--c-mid);
+}
+
+
+/* Happenings card — original yellow preserved */
+
+.service-card--happenings {
+  background: #ffe66d;
+
+  box-shadow:
+    inset 0 0 0 1px rgb(17 25 47 / 12%),
+    inset 0 1px 0 rgb(255 255 255 / 55%),
+    0 26px 44px -30px rgb(17 25 47 / 28%);
+}
+
+.service-card--happenings:hover,
+.service-card--happenings:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgb(17 25 47 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 62%),
+    0 34px 54px -26px rgb(17 25 47 / 35%);
+}
+
+.service-card--happenings .service-chip {
+  text-shadow: none;
+}
+
+.service-card--happenings .service-card-description,
+.service-card--happenings > .relative.z-10.mt-auto {
+  color: rgb(17 25 47 / 88%);
+}
+
+.service-card--happenings .service-art {
+  --ink: #11192f;
+  --a: #b83368;
+  --panel: #f4c83f;
+}
+
+
+/* ==================================================================
+   Cursor spotlight — original treatment preserved
+   ================================================================== */
+
+.service-card::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+
+  border-radius: inherit;
+
+  background: radial-gradient(
+    360px circle at var(--mx, 78%) var(--my, 8%),
+    rgb(255 255 255 / 22%),
+    transparent 62%
+  );
+
+  content: "";
+  opacity: 0.5;
+  pointer-events: none;
+
+  transition: opacity 400ms ease;
+}
+
+.service-card:hover::before {
+  opacity: 1;
+}
+
+
+/* ==================================================================
+   Card grain — original texture preserved
+   ================================================================== */
+
+.service-card::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+
+  border-radius: inherit;
+
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1.2 0 0 0 -.52'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+
+  content: "";
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+
+/* ==================================================================
+   Card entrance animation
+   ================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  .service-card {
+    animation: sx-in 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 90ms);
+  }
+}
+
+@keyframes sx-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+/* ==================================================================
+   Card typography — original styling preserved
+   ================================================================== */
+
+.service-chip {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 0;
+  background: transparent;
+
+  color: var(--card-ink);
+
+  font-family:
+    "Archivo Black",
+    "Plus Jakarta Sans",
+    sans-serif;
+
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+
+  text-shadow: 0 2px 18px rgb(0 0 0 / 25%);
+}
+
+.service-card-description {
+  max-width: 24em;
+
+  color: rgb(255 255 255 / 90%);
+
+  font-family:
+    "Plus Jakarta Sans",
+    "Noto Sans Tamil",
+    "Noto Sans Devanagari",
+    system-ui,
+    sans-serif;
+
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.service-card-arrow {
+  box-shadow:
+    0 10px 22px -8px var(--art-accent),
+    inset 0 1px 0 rgb(255 255 255 / 40%);
+}
+
+
+/* ==================================================================
+   Illustration stage — original palette and positioning preserved
+   ================================================================== */
+
+.service-art {
+  --ink: #fff;
+  --a: var(--art-accent);
+  --panel: var(--c-mid);
+
+  --hi: color-mix(in srgb, #fff 22%, var(--c-mid));
+  --lo: color-mix(in srgb, #fff 10%, var(--c-mid));
+  --rt: color-mix(in srgb, #fff 38%, var(--c-mid));
+
+  position: absolute;
+  z-index: 0;
+  inset: 30% 0 68px 0;
+
+  display: grid;
+  place-items: center;
+
+  pointer-events: none;
+}
+
+
+/* Soft light pool behind each illustration */
+
+.service-art::before {
+  position: absolute;
+  inset: 6% 12%;
+
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--c-glow) 55%, transparent),
+    transparent 72%
+  );
+
+  content: "";
+  filter: blur(10px);
+}
+
+
+/* Original halo rings */
+
+.service-art::after {
+  position: absolute;
+  bottom: -62%;
+  left: 50%;
+
+  width: 150%;
+  aspect-ratio: 1;
+
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 46px rgb(255 255 255 / 3%),
+    0 0 0 92px rgb(255 255 255 / 2.5%);
+
+  content: "";
+  transform: translateX(-50%);
+}
+
+
+/* Desktop wide-card layout */
+
+@media (min-width: 1024px) {
+  .service-card--wide .service-card-copy {
+    max-width: 52%;
+  }
+
+  .service-card--wide .service-art {
+    inset: 6% 2% 64px 52%;
+  }
+}
+
+
+/* ==================================================================
+   Animated SVG scenes — original styling preserved
+   ================================================================== */
+
+.sx-svg {
+  position: relative;
+  z-index: 1;
+
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sx-iso polygon {
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.sx-iso .sx-a {
+  stroke: var(--a);
+  stroke-width: 2.4;
+}
+
+.sx-nf {
+  fill: none !important;
+}
+
+.sx-ln {
+  fill: none;
+
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 5;
+
+  opacity: 0.6;
+}
+
+.sx-gr {
+  stroke: var(--ink);
+  stroke-width: 1;
+
+  opacity: 0.22;
+}
+
+.sx-st {
+  fill: none;
+
+  stroke: var(--ink);
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+/* Stick-figure characters */
+
+.sx-man {
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 28%));
+}
+
+.sx-man path {
+  fill: none;
+
+  stroke: #fff;
+  stroke-width: 4.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sx-man circle {
+  fill: var(--a);
+
+  stroke: #fff;
+  stroke-width: 3.6;
+}
+
+
+/* Scene typography */
+
+.sx-t {
+  font-family: inherit;
+  font-weight: 700;
+}
+
+.sx-nt {
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+
+  fill: var(--a);
+  opacity: 0;
+
+  animation: sx-float 4.2s ease-out infinite;
+}
+
+@keyframes sx-float {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(var(--dx), -70px);
+    opacity: 0;
+  }
+}
+
+
+/* ==================================================================
+   Mobile backdrop adjustments
+   ================================================================== */
+
+@media (max-width: 639px) {
+  .home-circuit-backdrop {
+    opacity: 0.55;
+  }
+
+  .home-circuit-current {
+    stroke-opacity: 0.32;
+  }
+}
+
+
+/* ==================================================================
+   Reduced motion
+   ================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-nt,
+  .home-circuit-current,
+  .home-circuit-nodes circle {
+    animation: none !important;
+  }
+
+  .service-card::before {
+    transition: none;
+  }
+
+  .home-circuit-current {
+    stroke-opacity: 0.22;
+  }
+
+  .home-circuit-nodes circle {
+    opacity: 0.55;
+  }
+}
+
+/* ==================================================================
+   Circuit visibility correction
+   Append AFTER the existing home.css rules.
+   ================================================================== */
+
+.home-circuit-backdrop {
+  opacity: 1;
+
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+
+/* Clearly visible, but still secondary to the cards */
+
+.home-circuit-rail {
+  fill: none;
+
+  stroke: #819082;
+  stroke-opacity: 0.48;
+  stroke-width: 1.25;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  vector-effect: non-scaling-stroke;
+}
+
+
+/* Moving sage-green current */
+
+.home-circuit-current {
+  fill: none;
+
+  stroke: #486951;
+  stroke-opacity: 0.85;
+  stroke-width: 2;
+
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  stroke-dasharray: 18 182;
+
+  vector-effect: non-scaling-stroke;
+
+  filter: drop-shadow(
+    0 0 3px rgb(72 105 81 / 18%)
+  );
+
+  animation: home-current-visible 9s linear infinite;
+}
+
+
+/* Alternate muted brass current */
+
+.home-circuit-current--slow {
+  stroke: #a08652;
+  stroke-opacity: 0.8;
+
+  stroke-dasharray: 14 226;
+
+  animation: home-current-visible-slow 14s linear infinite;
+  animation-delay: -4s;
+}
+
+.home-circuit-current:last-of-type {
+  animation-delay: -8s;
+}
+
+
+/* Connection nodes */
+
+.home-circuit-nodes circle {
+  r: 3px;
+
+  fill: #607a62;
+  fill-opacity: 1;
+
+  stroke: #f6f5f1;
+  stroke-width: 1.5;
+
+  vector-effect: non-scaling-stroke;
+
+  filter: drop-shadow(
+    0 0 4px rgb(72 105 81 / 15%)
+  );
+
+  animation: home-node-visible 5s ease-in-out infinite;
+}
+
+.home-circuit-nodes circle:nth-child(2n) {
+  fill: #a08652;
+  animation-delay: -2.5s;
+}
+
+.home-circuit-nodes circle:nth-child(3n) {
+  animation-delay: -1.25s;
+}
+
+
+/* Matching dash periods keep each animation loop seamless */
+
+@keyframes home-current-visible {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+
+@keyframes home-current-visible-slow {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -240;
+  }
+}
+
+@keyframes home-node-visible {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+
+/* Do not fade the circuit away on mobile */
+
+@media (max-width: 639px) {
+  .home-circuit-backdrop {
+    opacity: 1;
+  }
+
+  .home-circuit-rail {
+    stroke-opacity: 0.4;
+  }
+
+  .home-circuit-current {
+    stroke-opacity: 0.75;
+  }
+}
+
+
+/* Keep the static circuit visible for reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .home-circuit-current,
+  .home-circuit-nodes circle {
+    animation: none !important;
+  }
+
+  .home-circuit-current {
+    stroke-opacity: 0.65;
+  }
+
+  .home-circuit-nodes circle {
+    opacity: 0.85;
+  }
+}
