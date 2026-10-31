@@ -328,7 +328,7 @@ const TechGraphic = makeGraphic(techScene, 3, true);
 /*  glow / mix = light blobs behind the illustration                   */
 /* ------------------------------------------------------------------ */
 const TONES = {
-  sand: { base: '#ffe66d', mid: '#ffe66d', glow: '#ffe66d', mix: '#ffd84a', accent: '#11192f' },
+  sand: { base: '#f5f6f8', mid: '#e9eefb', glow: '#6f91e8', mix: '#b7c9f4', accent: '#1f46c9' },
   forest: { base: '#1b0a12', mid: '#c2411f', glow: '#ffb04d', mix: '#d6336c', accent: '#ffb04d' },
   sky: { base: '#052f2a', mid: '#0d8560', glow: '#34d399', mix: '#0ea5e9', accent: '#ff4f86' },
   rose: { base: '#4a0d33', mid: '#c0266b', glow: '#ff7ab6', mix: '#7c3aed', accent: '#3563ff' },
@@ -395,7 +395,7 @@ export default function ServiceGrid() {
             onPointerMove={spotlight}
             style={{
               '--i': index,
-              '--card-ink': service.id === 'happenings' ? '#11192f' : '#ffffff',
+              '--card-ink': service.id === 'happenings' ? '#0b1220' : '#ffffff',
               '--c-base': tone.base,
               '--c-mid': tone.mid,
               '--c-glow': tone.glow,

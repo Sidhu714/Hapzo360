@@ -133,12 +133,12 @@ header .logo-wordmark { font-family: "Ethnocentric", "Archivo Black", "Plus Jaka
 .navbar--price-list a { text-shadow: 0 1px 5px rgb(0 0 0 / 72%); }
 .navbar--technology { border-color: rgb(255 255 255 / 14%) !important; background-color: rgb(8 24 35 / 78%); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .navbar--technology a { text-shadow: 0 1px 5px rgb(0 0 0 / 72%); }
-.navbar--happenings { border-color: rgb(17 25 47 / 14%) !important; background-color: rgb(255 230 109 / 92%); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 8px 28px rgb(17 25 47 / 8%); }
+.navbar--happenings { border-color: rgb(11 18 32 / 12%) !important; background-color: rgb(245 246 248 / 94%); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 8px 28px rgb(11 18 32 / 8%); }
 .navbar--happenings a { text-shadow: none; }
 .navbar--happenings .language-switcher { border-color: rgb(17 25 47 / 18%); background: rgb(255 255 255 / 42%); }
 .navbar--happenings .language-switcher button:not(.language-switcher-active) { color: rgb(17 25 47 / 78%); }
 .navbar--happenings .language-switcher button:not(.language-switcher-active):hover { color: #11192f; background: rgb(255 255 255 / 58%); }
-.navbar--happenings .language-switcher .language-switcher-active { background: #11192f; color: #fff; }
+.navbar--happenings .language-switcher .language-switcher-active { background: #1f46c9; color: #fff; }
 .language-switcher.language-switcher--dark { border-color: rgb(255 255 255 / 20%); background: rgb(255 255 255 / 8%); }
 .language-switcher--dark button:not(.language-switcher-active) { color: rgb(255 255 255 / 78%); }
 .language-switcher--dark button:not(.language-switcher-active):hover { color: #fff; background: rgb(255 255 255 / 10%); }

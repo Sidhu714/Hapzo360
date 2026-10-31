@@ -107,8 +107,8 @@ export default function Navbar() {
     return `rounded-full px-4 py-2.5 text-sm font-semibold transition ${
       isHappeningsPage
         ? isActive
-          ? 'bg-[#11192f]/10 text-[#11192f]'
-          : 'text-[#11192f]/85 hover:bg-[#11192f]/10 hover:text-[#11192f]'
+          ? 'bg-[#1f46c9]/10 text-[#14308f]'
+          : 'text-[#0b1220]/85 hover:bg-[#1f46c9]/10 hover:text-[#14308f]'
         : isDarkPage
           ? isActive
             ? 'bg-white/15 text-white'
@@ -160,7 +160,7 @@ export default function Navbar() {
         : isTechnologyPage
           ? 'border-white/15 bg-[#120a44]/35'
           : isHappeningsPage
-            ? 'border-[#11192f]/15 bg-[#ffe66d]'
+            ? 'border-[#0b1220]/15 bg-[#f5f6f8]'
             : 'border-stone-200';
 
 

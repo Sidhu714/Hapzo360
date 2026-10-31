@@ -3,10 +3,10 @@ import { CalendarDays, MapPin, Search, Sparkles, Clock3, ArrowUpRight, Plus, X, 
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import AddEventModal from './AddEventModal';
 import { DISTRICTS } from '../../data/indiaLocations';
-import EventCrowd from './EventCard';
+import API_BASE_URL from '../../config/api';
+import EventPulse from './EventCard';
 
 const API_URL = import.meta.env.VITE_EVENTS_API_URL || '';
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const ONLINE_EVENTS_API_URL = `${API_BASE_URL}/api/happenings/search`;
 const EVENT_CACHE_KEY = 'happening.events.cache.v1';
 const USER_EVENTS_KEY = 'happening.user-events.v1';
@@ -25,11 +25,10 @@ let faceLandmarkerPromise;
 
 /* ---------- Tailwind class presets ---------- */
 const ease = 'ease-[cubic-bezier(0.22,1,0.36,1)]';
-const thinScroll = '[scrollbar-width:thin] [scrollbar-color:rgba(17,25,47,0.2)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#11192f]/25 hover:[&::-webkit-scrollbar-thumb]:bg-[#11192f]/40';
+const thinScroll = '[scrollbar-width:thin] [scrollbar-color:rgba(11,18,32,0.2)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#0b1220]/25 hover:[&::-webkit-scrollbar-thumb]:bg-[#0b1220]/40';
 const hideScroll = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
-const btnPrimary = 'inline-flex items-center justify-center gap-2 rounded-full bg-[#11192f] font-bold text-white transition duration-200 hover:bg-[#4c5a75] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5577] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfcfe] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none';
-const btnLight = 'inline-flex items-center justify-center gap-2 rounded-full bg-white font-bold text-[#11192f] shadow-lg shadow-black/20 transition duration-200 hover:bg-[#ff5577] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none';
-const skeleton = 'animate-pulse bg-[#f4f7fb] motion-reduce:animate-none';
+const btnPrimary = 'inline-flex items-center justify-center gap-2 rounded-full bg-[#1f46c9] font-bold text-white transition duration-200 hover:bg-[#14308f] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fafbfc] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none';
+const skeleton = 'animate-pulse bg-[#e8ebf0] motion-reduce:animate-none';
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -123,130 +122,12 @@ function useEntered() {
   return on;
 }
 
-function useNow(ms = 1000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), ms);
-    return () => window.clearInterval(id);
-  }, [ms]);
-  return now;
-}
-
 function EventBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div className="ev-grid" />
       <div className="ev-atmosphere" />
-      <EventCrowd />
-    </div>
-  );
-}
-
-function Tile({ value, label, tick = false }) {
-  return (
-    <div className="ev-tile">
-      <span key={tick ? value : undefined} className={tick ? 'ev-tick' : ''}>{String(value).padStart(2, '0')}</span>
-      <small>{label}</small>
-    </div>
-  );
-}
-
-/** Hero board: live countdown to the next event plus a 7-day strip built from the real listings. */
-function EventBoard({ events, loading, onOpen, onAdd, dayFilter, onDay, district }) {
-  const now = useNow(1000);
-  const dated = useMemo(
-    () => events.map(event => ({ event, date: parseEventDate(event) })).filter(item => item.date).sort((a, b) => a.date - b.date),
-    [events]
-  );
-  const next = dated.find(item => item.date.getTime() >= now);
-
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const todayMs = today.getTime();
-
-  const days = useMemo(() => {
-    const counts = {};
-    dated.forEach(({ date }) => { const key = dayKey(date); counts[key] = (counts[key] || 0) + 1; });
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(todayMs + index * 86400000);
-      const key = dayKey(date);
-      return {
-        key,
-        weekday: new Intl.DateTimeFormat('en-IN', { weekday: 'short' }).format(date),
-        day: date.getDate(),
-        count: counts[key] || 0,
-      };
-    });
-  }, [dated, todayMs]);
-
-  const diff = next ? Math.max(0, next.date.getTime() - now) : 0;
-  const parts = {
-    days: Math.floor(diff / 86400000),
-    hours: Math.floor(diff / 3600000) % 24,
-    minutes: Math.floor(diff / 60000) % 60,
-    seconds: Math.floor(diff / 1000) % 60,
-  };
-
-  return (
-    <div className="ev-board">
-      <div className="flex items-center justify-between gap-3">
-        
-        <span className="text-xs text-white/60">{loading ? 'Loading…' : `${events.length} listed`}</span>
-      </div>
-
-      {loading ? (
-        <div className="mt-4 space-y-3">
-          <div className="ev-skeleton h-6 w-3/4 rounded-lg" />
-          <div className="ev-skeleton h-[74px] rounded-2xl" />
-        </div>
-      ) : next ? (
-        <button type="button" onClick={() => onOpen(next.event)} className="mt-4 block w-full text-left">
-          <span className="line-clamp-2 block text-xl font-black leading-snug tracking-tight text-white sm:text-2xl">
-            {next.event.title || next.event.name}
-          </span>
-          <span className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
-            <span className="inline-flex items-center gap-1.5"><CalendarDays size={14} className="text-[#ff5577]" />{formatDate(next.event.date || next.event.startDate)}</span>
-            {(next.event.venue || next.event.location) && (
-              <span className="inline-flex min-w-0 items-center gap-1.5"><MapPin size={14} className="shrink-0 text-[#ff5577]" /><span className="truncate">{next.event.venue || next.event.location}</span></span>
-            )}
-          </span>
-
-          <span className="mt-4 grid grid-cols-4 gap-2">
-            <Tile value={parts.days} label="days" />
-            <Tile value={parts.hours} label="hours" />
-            <Tile value={parts.minutes} label="min" />
-            <Tile value={parts.seconds} label="sec" tick />
-          </span>
-        </button>
-      ) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-white/25 p-5 text-center">
-          <p className="text-sm text-white/70">No upcoming events yet. Be the first to put something on the calendar.</p>
-          <button type="button" onClick={onAdd} className={`${btnLight} mt-3 px-5 py-2.5 text-sm`}><Plus size={15} />Add an event</button>
-        </div>
-      )}
-
-      <div className="mt-5 border-t border-white/15 pt-4">
-        <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/55">This week</p>
-        <div className="grid grid-cols-7 gap-1.5">
-          {days.map(item => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onDay(dayFilter === item.key ? '' : item.key)}
-              aria-pressed={dayFilter === item.key}
-              title={item.count ? `${item.count} event${item.count === 1 ? '' : 's'}` : 'No events'}
-              className={`ev-day ${item.count ? 'ev-day--has' : ''} ${dayFilter === item.key ? 'ev-day--on' : ''}`}
-            >
-              <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{item.weekday}</span>
-              <b className="text-base">{item.day}</b>
-              <span className="flex h-2 items-center gap-0.5">
-                {Array.from({ length: Math.min(item.count, 3) }).map((_, dot) => <i key={dot} className="ev-dot" style={{ animationDelay: `${dot * 0.25}s` }} />)}
-              </span>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2.5 text-[11px] text-white/45">Tap a day to see its events. Dots show how many are listed.</p>
-      </div>
+      <EventPulse />
     </div>
   );
 }
@@ -262,8 +143,8 @@ function TickerTape({ events, onOpen }) {
     <div className="ev-tape-group" key={suffix} aria-hidden={suffix === 'b' ? 'true' : undefined}>
       {rows.map((event, index) => (
         <button key={`${suffix}-${event.id ?? index}`} type="button" tabIndex={suffix === 'b' ? -1 : undefined} onClick={() => onOpen(event)} className="ev-tape-item">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#ff5577]" />
-          <span className="font-bold text-[#ff5577]">{event.category || 'Community'}</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-[#f2b53d]" />
+          <span className="font-bold text-[#f2b53d]">{event.category || 'Community'}</span>
           <span className="max-w-[320px] truncate text-white">{event.title || event.name}</span>
           <span className="text-white/50">{formatDate(event.date || event.startDate)}</span>
           {(event.venue || event.location) && <span className="max-w-[200px] truncate text-white/45">{event.venue || event.location}</span>}
@@ -280,31 +161,12 @@ function TickerTape({ events, onOpen }) {
 }
 
 const STYLES = `
-.ev-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(17,25,47,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(17,25,47,.045) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:linear-gradient(to bottom,#000,transparent 82%);mask-image:linear-gradient(to bottom,#000,transparent 82%)}
-.ev-atmosphere{position:absolute;inset:0;background:radial-gradient(ellipse at 82% 4%,rgba(86,223,255,.22),transparent 42%),radial-gradient(ellipse at 12% 24%,rgba(255,85,119,.15),transparent 38%)}
-.ev-event-card{border-radius:30px;background-clip:padding-box;box-shadow:0 18px 44px rgba(17,25,47,.16)}
-.ev-event-card:hover{box-shadow:0 24px 54px rgba(17,25,47,.24)}
+.ev-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(11,18,32,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(11,18,32,.05) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:linear-gradient(to bottom,#000,transparent 82%);mask-image:linear-gradient(to bottom,#000,transparent 82%)}
+.ev-atmosphere{position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(31,70,201,.07),transparent 55%)}
+.ev-event-card{border-radius:20px;background-clip:padding-box;box-shadow:0 1px 2px rgba(11,18,32,.05),0 10px 28px -14px rgba(11,18,32,.16)}
+.ev-event-card:hover{box-shadow:0 1px 2px rgba(11,18,32,.06),0 18px 38px -16px rgba(11,18,32,.22)}
 
-.ev-board{border-radius:30px;padding:22px;background:linear-gradient(145deg,#76234f 0%,#a52f61 58%,#c33f70 100%);border:1px solid rgba(255,255,255,.22);box-shadow:0 24px 52px -28px rgba(99,25,63,.42),inset 0 1px 0 rgba(255,255,255,.2)}
-.ev-live{position:relative;width:9px;height:9px;border-radius:50%;background:#56dfff}
-.ev-live::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid #56dfff;animation:ev-ping 1.8s ease-out infinite}
-@keyframes ev-ping{0%{transform:scale(1);opacity:.8}100%{transform:scale(3);opacity:0}}
-
-.ev-tile{display:grid;justify-items:center;gap:2px;border-radius:16px;padding:12px 4px 9px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);overflow:hidden}
-.ev-tile span{font-size:30px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:#fff}
-.ev-tile small{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55)}
-.ev-tick{display:inline-block;animation:ev-tick .45s cubic-bezier(.2,.7,.2,1)}
-@keyframes ev-tick{from{transform:translateY(-55%);opacity:0}to{transform:none;opacity:1}}
-
-.ev-day{display:grid;justify-items:center;gap:2px;border-radius:14px;padding:8px 2px 6px;color:#fff;background:rgba(255,255,255,.06);border:1px solid transparent;transition:background .25s,border-color .25s,transform .25s}
-.ev-day:hover{background:rgba(255,255,255,.14);transform:translateY(-2px)}
-.ev-day--has{background:rgba(255,255,255,.12)}
-.ev-day--on{background:#fff;color:#11192f;border-color:#fff}
-.ev-dot{display:block;width:6px;height:6px;border-radius:50%;background:#ff5577;animation:ev-pulse 1.8s ease-in-out infinite}
-.ev-day--on .ev-dot{background:#ff5577}
-@keyframes ev-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.6}}
-
-.ev-tape{overflow:hidden;border-block:1px solid rgba(255,255,255,.14);background:#11192f;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.ev-tape{overflow:hidden;border-block:1px solid rgba(11,18,32,.14);background:#0b1220;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
 .ev-tape-track{display:flex;width:max-content;animation:ev-marquee 80s linear infinite}
 .ev-tape:hover .ev-tape-track,.ev-tape:focus-within .ev-tape-track{animation-play-state:paused}
 .ev-tape-group{display:flex;flex-shrink:0}
@@ -312,13 +174,9 @@ const STYLES = `
 .ev-tape-item:hover{background:rgba(255,255,255,.08)}
 @keyframes ev-marquee{to{transform:translateX(-50%)}}
 
-.ev-skeleton{background:linear-gradient(100deg,rgba(255,255,255,.07) 30%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.07) 70%) 0 0/200% 100%;animation:ev-shimmer 1.4s linear infinite}
-@keyframes ev-shimmer{to{background-position:-200% 0}}
-
 @media (prefers-reduced-motion:reduce){
-  .ev-live::after,.ev-tick,.ev-dot,.ev-tape-track,.ev-skeleton{animation:none!important}
+  .ev-tape-track{animation:none!important}
   .ev-tape{overflow-x:auto}
-  .ev-day{transition:none}
 }
 `;
 
@@ -341,13 +199,13 @@ function Modal({ closing, onBackdrop, labelledBy, className = '', children }) {
   return (
     <div
       onMouseDown={event => { if (event.target === event.currentTarget) onBackdrop(); }}
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-[#11192f]/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none sm:items-center sm:p-5 ${show ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-[#0b1220]/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none sm:items-center sm:p-5 ${show ? 'opacity-100' : 'opacity-0'}`}
     >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className={`relative flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.75rem] bg-[#fbfcfe] text-[#11192f] shadow-2xl transition duration-300 ${ease} motion-reduce:transition-none sm:max-h-[90dvh] sm:rounded-[1.75rem] ${show ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-6 scale-[0.98] opacity-0'} ${className}`}
+        className={`relative flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.75rem] bg-[#fafbfc] text-[#0b1220] shadow-2xl transition duration-300 ${ease} motion-reduce:transition-none sm:max-h-[90dvh] sm:rounded-[1.75rem] ${show ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-6 scale-[0.98] opacity-0'} ${className}`}
       >
         {children}
       </section>
@@ -361,7 +219,7 @@ function Toast({ message }) {
     <div
       role="status"
       aria-live="polite"
-      className={`fixed bottom-6 left-1/2 z-[60] w-[calc(100%-2.5rem)] max-w-md -translate-x-1/2 rounded-2xl bg-white px-5 py-3.5 text-center text-sm font-semibold text-[#11192f] shadow-2xl transition duration-300 ${ease} motion-reduce:transition-none ${on ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}
+      className={`fixed bottom-6 left-1/2 z-[60] w-[calc(100%-2.5rem)] max-w-md -translate-x-1/2 rounded-2xl bg-[#0b1220] px-5 py-3.5 text-center text-sm font-semibold text-white shadow-2xl transition duration-300 ${ease} motion-reduce:transition-none ${on ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}
     >
       {message}
     </div>
@@ -400,17 +258,17 @@ function EventImage({ src, alt, category = 'Community', className = '' }) {
   if (!src || failed) {
     const kind = String(category).toLowerCase();
     const visual = /hackathon|technology|tech/.test(kind)
-      ? { background: '#f4f7fb', foreground: '#4b5b74', icon: Sparkles }
+      ? { background: '#e9eefb', foreground: '#1f46c9', icon: Sparkles }
       : /business/.test(kind)
-        ? { background: '#f1f3f9', foreground: '#40506a', icon: Ticket }
+        ? { background: '#eef0f4', foreground: '#4b5565', icon: Ticket }
         : /meetup|community/.test(kind)
-          ? { background: '#edf2f8', foreground: '#365b72', icon: Users }
-          : { background: '#eaf0f7', foreground: '#53627b', icon: CalendarDays };
+          ? { background: '#eceff4', foreground: '#3d4a66', icon: Users }
+          : { background: '#e9edf2', foreground: '#5b6575', icon: CalendarDays };
     const VisualIcon = visual.icon;
     return (
       <div className={`relative grid h-full w-full place-items-center overflow-hidden ${className}`} style={{ backgroundColor: visual.background }}>
-        <div aria-hidden="true" className="absolute inset-x-[14%] top-1/2 h-px bg-[#11192f]/[.08]" />
-        <div aria-hidden="true" className="absolute inset-y-[18%] left-1/2 w-px bg-[#11192f]/[.08]" />
+        <div aria-hidden="true" className="absolute inset-x-[14%] top-1/2 h-px bg-[#0b1220]/[.08]" />
+        <div aria-hidden="true" className="absolute inset-y-[18%] left-1/2 w-px bg-[#0b1220]/[.08]" />
         <span className="relative grid h-[68px] w-[68px] place-items-center rounded-[20px] border border-white/80 bg-white/65 shadow-sm" style={{ color: visual.foreground }}>
           <VisualIcon size={30} strokeWidth={1.6} />
         </span>
@@ -442,65 +300,65 @@ const EventCard = memo(function EventCard({ event, index, onOpen }) {
         tabIndex={0}
         onClick={() => onOpen(event)}
         onKeyDown={key => { if (key.key === 'Enter' || key.key === ' ') { key.preventDefault(); onOpen(event); } }}
-        className={`ev-event-card group flex w-full cursor-pointer flex-col overflow-hidden rounded-[30px] border border-[#11192f]/10 bg-white text-[#11192f] transition duration-300 ${ease} hover:-translate-y-1 hover:border-[#ff5577]/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5577] active:translate-y-0 motion-reduce:transition-none`}
+        className={`ev-event-card group flex w-full cursor-pointer flex-col overflow-hidden rounded-[20px] border border-[#0b1220]/10 bg-white text-[#0b1220] transition duration-300 ${ease} hover:-translate-y-1 hover:border-[#1f46c9]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] active:translate-y-0 motion-reduce:transition-none`}
       >
-        <div className="relative h-52 overflow-hidden bg-[#f4f7fb] sm:h-56">
+        <div className="relative h-52 overflow-hidden bg-[#e9eefb] sm:h-56">
           <EventImage src={eventImageUrl(event)} category={event.category} alt={title || 'Event'} className="transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none" />
-          <div className="absolute left-4 top-4 rounded-full bg-[#fbfcfe]/95 px-3 py-2 text-xs font-bold text-[#11192f] shadow-sm backdrop-blur">
+          <div className="absolute left-4 top-4 rounded-full bg-[#fafbfc]/95 px-3 py-2 text-xs font-bold text-[#0b1220] shadow-sm backdrop-blur">
             {event.category || 'Community'}
           </div>
           {event.createdByUser && (
-            <div className="absolute right-4 top-4 rounded-full bg-[#ff5577] px-3 py-2 text-xs font-bold text-[#11192f]">Community event</div>
+            <div className="absolute right-4 top-4 rounded-full bg-[#1f46c9] px-3 py-2 text-xs font-bold text-white">Community event</div>
           )}
           {event.scraped && (
-            <div className="absolute right-4 top-4 rounded-full bg-[#56dfff] px-3 py-2 text-xs font-bold text-[#11192f]">{event.sourceName || 'Found online'}</div>
+            <div className="absolute right-4 top-4 rounded-full bg-[#f2b53d] px-3 py-2 text-xs font-bold text-[#0b1220]">{event.sourceName || 'Found online'}</div>
           )}
         </div>
 
         <div className="flex flex-1 flex-col p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#50627e]">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#1f46c9]">
             <CalendarDays size={15} />
             {formatDate(event.date || event.startDate)}
           </div>
 
-          <h3 className="line-clamp-2 text-xl font-extrabold leading-snug tracking-[-0.03em] transition-colors duration-300 group-hover:text-[#40516d]">{title}</h3>
+          <h3 className="line-clamp-2 text-xl font-extrabold leading-snug tracking-[-0.03em] transition-colors duration-300 group-hover:text-[#14308f]">{title}</h3>
 
-          <div className="mt-4 space-y-2.5 text-sm text-[#11192f]/65">
+          <div className="mt-4 space-y-2.5 text-sm text-[#0b1220]/65">
             {(event.time || event.startTime) && (
               <div className="flex items-start gap-2.5">
-                <Clock3 size={16} className="mt-0.5 shrink-0 text-[#50627e]" />
+                <Clock3 size={16} className="mt-0.5 shrink-0 text-[#5b6575]" />
                 <span>{event.time || event.startTime}</span>
               </div>
             )}
             {venueLabel(event) && (
               <div className="flex items-start gap-2.5">
-                <MapPin size={16} className="mt-0.5 shrink-0 text-[#50627e]" />
+                <MapPin size={16} className="mt-0.5 shrink-0 text-[#5b6575]" />
                 <span className="line-clamp-2">{venueLabel(event)}</span>
               </div>
             )}
           </div>
 
-          {event.description && <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#11192f]/60">{event.description}</p>}
+          {event.description && <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#0b1220]/60">{event.description}</p>}
 
           <div className="mt-auto pt-5">
-            <div className="flex items-center justify-between gap-3 border-t border-[#11192f]/10 pt-5">
+            <div className="flex items-center justify-between gap-3 border-t border-[#0b1220]/10 pt-5">
               {event.scraped ? (
-                <span className="text-sm font-semibold text-[#11192f]/70">
+                <span className="text-sm font-semibold text-[#0b1220]/70">
                   {event.price || event.mode || 'See details'}
                 </span>
               ) : (
-                <div className="flex items-center gap-2 text-sm text-[#11192f]/55">
-                  <Users size={16} className="text-[#50627e]" />
-                  <strong className="text-[#11192f]">{registrationCount(event)}</strong>
+                <div className="flex items-center gap-2 text-sm text-[#0b1220]/55">
+                  <Users size={16} className="text-[#5b6575]" />
+                  <strong className="text-[#0b1220]">{registrationCount(event)}</strong>
                   <span>registered</span>
                 </div>
               )}
-              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-[#46536f] transition-all duration-300 group-hover:gap-2.5">
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1f46c9] transition-all duration-300 group-hover:gap-2.5">
                 Explore
                 <ArrowUpRight size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </span>
             </div>
-            {event.scraped && event.sourceName && <p className="mt-2 truncate text-xs text-[#11192f]/45">Source: {event.sourceName}</p>}
+            {event.scraped && event.sourceName && <p className="mt-2 truncate text-xs text-[#0b1220]/45">Source: {event.sourceName}</p>}
           </div>
         </div>
       </article>
@@ -510,7 +368,7 @@ const EventCard = memo(function EventCard({ event, index, onOpen }) {
 
 function CardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-white/60 bg-white">
+    <div className="overflow-hidden rounded-[1.5rem] border border-[#0b1220]/10 bg-white">
       <div className={`h-52 sm:h-56 ${skeleton}`} />
       <div className="space-y-3 p-6">
         <div className={`h-4 w-1/3 rounded-full ${skeleton}`} />
@@ -524,9 +382,9 @@ function CardSkeleton() {
 
 function Panel({ icon: Icon, title, badge, children }) {
   return (
-    <div className="rounded-2xl border border-[#11192f]/10 bg-white p-4 sm:p-5">
+    <div className="rounded-2xl border border-[#0b1220]/10 bg-white p-4 sm:p-5">
       <div className="flex items-center gap-2 text-sm font-bold">
-        <Icon size={17} className="text-[#526783]" />
+        <Icon size={17} className="text-[#1f46c9]" />
         {title}
         {badge}
       </div>
@@ -753,7 +611,7 @@ export default function Happening() {
     if (!selectedEvent?.url || selectedEvent.createdByUser || selectedEvent.scraped) return undefined;
     const controller = new AbortController();
     setDetailsLoading(true);
-    fetch(`/api/event-details?url=${encodeURIComponent(selectedEvent.url)}`, { signal: controller.signal })
+    fetch(`${API_BASE_URL}/api/event-details?url=${encodeURIComponent(selectedEvent.url)}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error('Details unavailable'); return response.json(); })
       .then(extra => setSelectedEvent(current => current ? { ...current, ...extra, venue: current.venue || extra.venue, date: current.date || extra.date } : current))
       .catch(() => { })
@@ -864,16 +722,16 @@ export default function Happening() {
   const dayLabel = dayFilter ? formatDate(dayFilter) : '';
 
   return (
-    <div className="relative isolate min-h-screen overflow-x-clip bg-[#ffe66d] text-[#11192f] antialiased selection:bg-[#ff5577]/40">
+    <div className="relative isolate min-h-screen overflow-x-clip bg-[#f5f6f8] text-[#0b1220] antialiased selection:bg-[#1f46c9]/25">
       <style>{STYLES}</style>
       <EventBackdrop />
 
       <main id="top" className="relative z-10">
         {/* Hero */}
-        <section className="mx-auto grid max-w-[1440px] items-center gap-10 px-5 py-14 sm:px-8 md:py-20 lg:grid-cols-[1.1fr_.9fr] lg:gap-14 lg:px-12">
+          <section className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 md:py-20 lg:px-12">
           <div>
             <Reveal>
-              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#11192f]/15 bg-white/55 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#11192f]">
+              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#0b1220]/15 bg-white px-4 py-2 text-sm font-semibold text-[#14308f]">
                 <Sparkles size={14} />
                 Your town, your plans
               </div>
@@ -883,12 +741,12 @@ export default function Happening() {
               <h1 className="max-w-3xl text-[2.9rem] font-black leading-[1] tracking-[-0.065em] sm:text-7xl lg:text-[88px]">
                 Good things
                 <br />
-                are <span className="font-serif font-medium italic text-[#ff5577]">happening.</span>
+                are happening<span className="text-[#1f46c9]">.</span>
               </h1>
             </Reveal>
 
             <Reveal delay={160}>
-              <p className="mt-6 max-w-lg text-base leading-7 text-[#11192f]/75 sm:text-lg">
+              <p className="mt-6 max-w-lg text-base leading-7 text-[#0b1220]/75 sm:text-lg">
                 Discover the people, places and experiences happening in {district}.
                 Your next favourite memory might be just around the corner.
               </p>
@@ -896,24 +754,23 @@ export default function Happening() {
 
             <Reveal delay={240}>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <button onClick={scrollToEvents} className="group inline-flex items-center gap-3 rounded-full bg-[#ff5577] px-6 py-3.5 font-bold text-[#11192f] shadow-lg shadow-[#ff5577]/25 transition duration-200 hover:bg-white active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none">
+                <button onClick={scrollToEvents} className="group inline-flex items-center gap-3 rounded-full bg-[#1f46c9] px-6 py-3.5 font-bold text-white shadow-lg shadow-[#1f46c9]/25 transition duration-200 hover:bg-[#14308f] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f6f8] motion-reduce:transition-none">
                   Explore what's on
                   <ArrowUpRight size={18} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </button>
-                <button onClick={openAdd} className="inline-flex items-center gap-2 rounded-full border border-[#11192f]/20 bg-white/55 px-6 py-3.5 font-bold text-[#11192f] transition duration-200 hover:bg-white active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#11192f] motion-reduce:transition-none">
+                <button onClick={openAdd} className="inline-flex items-center gap-2 rounded-full border border-[#0b1220]/20 bg-white px-6 py-3.5 font-bold text-[#0b1220] transition duration-200 hover:bg-[#dfe6f8] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] motion-reduce:transition-none">
                   <Plus size={17} />
                   Add an event
                 </button>
               </div>
             </Reveal>
 
-            <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-[#11192f]/20 pt-6 text-sm text-[#11192f]/75">
-              <span className="flex items-center gap-2"><MapPin size={15} className="text-[#ff5577]" />Events near {district}</span>
-              <span className="flex items-center gap-2"><CalendarDays size={15} className="text-[#ff5577]" />Discover what's next</span>
+            <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-[#0b1220]/15 pt-6 text-sm text-[#0b1220]/75">
+              <span className="flex items-center gap-2"><MapPin size={15} className="text-[#1f46c9]" />Events near {district}</span>
+              <span className="flex items-center gap-2"><CalendarDays size={15} className="text-[#1f46c9]" />Discover what's next</span>
             </div>
           </div>
 
-          <EventBoard events={allEvents} loading={loading || onlineLoading} onOpen={openDetails} onAdd={openAdd} dayFilter={dayFilter} onDay={pickDay} district={district} />
         </section>
 
         {/* Ticker tape of real listings */}
@@ -924,37 +781,37 @@ export default function Happening() {
           <section id="events-list" className="scroll-mt-24 pt-12 sm:pt-16">
             <div className="mb-7 flex flex-col justify-between gap-5 md:flex-row md:items-end">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#11192f]/70">Find your people</p>
+                <p className="mb-3 text-sm font-bold text-[#1f46c9]">Find your people</p>
                 <h2 className="text-3xl font-black tracking-[-0.055em] sm:text-4xl">What's on the calendar?</h2>
-                <p className="mt-2 text-sm leading-6 text-[#11192f]/75 sm:text-base">Community events and online listings for hackathons, meetups, expos, workshops, webinars and conferences.</p>
+                <p className="mt-2 text-sm leading-6 text-[#0b1220]/75 sm:text-base">Community events and online listings for hackathons, meetups, expos, workshops, webinars and conferences.</p>
               </div>
-              <label className="flex shrink-0 items-center gap-2 self-start rounded-full border border-[#11192f]/15 bg-white/65 px-4 py-2.5 text-sm font-medium text-[#11192f] md:self-auto">
-                <MapPin size={15} className="text-[#ff5577]" />
+              <label className="flex shrink-0 items-center gap-2 self-start rounded-full border border-[#0b1220]/15 bg-white px-4 py-2.5 text-sm font-medium text-[#0b1220] md:self-auto">
+                <MapPin size={15} className="text-[#1f46c9]" />
                 <span className="sr-only">Choose a Tamil Nadu district</span>
                 <select
                   value={district}
                   onChange={event => setDistrict(event.target.value)}
                   aria-label="Choose a Tamil Nadu district"
-                  className="max-w-[190px] cursor-pointer bg-transparent text-[#11192f] outline-none [&>option]:text-[#11192f]"
+                  className="max-w-[190px] cursor-pointer bg-transparent text-[#0b1220] outline-none [&>option]:text-[#0b1220]"
                 >
                   {HAPPENING_DISTRICTS.map(item => <option key={item} value={item}>{item}, Tamil Nadu</option>)}
                 </select>
               </label>
             </div>
 
-            <div className="rounded-[1.5rem] border border-[#11192f]/10 bg-white p-3 text-[#11192f] shadow-xl shadow-[#11192f]/15 sm:p-4">
-              <label className="flex items-center gap-3 rounded-xl bg-[#f2f5fa] px-4 py-3.5 transition duration-200 focus-within:ring-2 focus-within:ring-[#ff5577]">
-                <Search size={19} className="shrink-0 text-[#50627e]" />
+            <div className="rounded-[1.5rem] border border-[#0b1220]/10 bg-white p-3 text-[#0b1220] shadow-xl shadow-[#0b1220]/10 sm:p-4">
+              <label className="flex items-center gap-3 rounded-xl bg-[#f0f2f6] px-4 py-3.5 transition duration-200 focus-within:ring-2 focus-within:ring-[#1f46c9]">
+                <Search size={19} className="shrink-0 text-[#5b6575]" />
                 <input
                   value={query}
                   onChange={event => setQuery(event.target.value)}
                   placeholder="Search events, venues or experiences..."
                   aria-label="Search events"
-                  className="w-full bg-transparent text-sm text-[#11192f] outline-none placeholder:text-[#11192f]/40 sm:text-base"
+                  className="w-full bg-transparent text-sm text-[#0b1220] outline-none placeholder:text-[#0b1220]/40 sm:text-base"
                 />
                 {query && (
-                  <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="rounded-full p-1 transition hover:bg-[#11192f]/10">
-                    <X size={17} className="text-[#11192f]/60" />
+                  <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="rounded-full p-1 transition hover:bg-[#0b1220]/10">
+                    <X size={17} className="text-[#0b1220]/60" />
                   </button>
                 )}
               </label>
@@ -965,9 +822,9 @@ export default function Happening() {
                     key={item}
                     onClick={() => setCategory(item)}
                     aria-pressed={category === item}
-                    className={`shrink-0 snap-start rounded-full px-4 py-2.5 text-sm font-semibold transition duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff5577] motion-reduce:transition-none ${category === item
-                      ? 'bg-[#11192f] text-white shadow-sm'
-                      : 'border border-[#11192f]/10 bg-white text-[#11192f]/65 hover:border-[#11192f]/30 hover:bg-[#f2f5fa]'
+                    className={`shrink-0 snap-start rounded-full px-4 py-2.5 text-sm font-semibold transition duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] motion-reduce:transition-none ${category === item
+                      ? 'bg-[#1f46c9] text-white shadow-sm'
+                      : 'border border-[#0b1220]/10 bg-white text-[#0b1220]/65 hover:border-[#1f46c9]/40 hover:bg-[#e9eefb]'
                       }`}
                   >
                     {item}
@@ -975,24 +832,24 @@ export default function Happening() {
                 ))}
               </div>
 
-              <div className="mt-4 grid gap-3 border-t border-[#11192f]/10 pt-4 sm:grid-cols-2">
-                <label className="block text-xs font-bold text-[#11192f]/60">
+              <div className="mt-4 grid gap-3 border-t border-[#0b1220]/10 pt-4 sm:grid-cols-2">
+                <label className="block text-xs font-bold text-[#0b1220]/60">
                   Event day
                   <input
                     type="date"
                     value={dayFilter}
                     onChange={event => setDayFilter(event.target.value)}
                     aria-label="Filter events by day"
-                    className="mt-1.5 block w-full rounded-xl border border-[#11192f]/10 bg-[#f2f5fa] px-3.5 py-3 text-sm font-medium text-[#11192f] outline-none transition focus:border-[#526783] focus:ring-2 focus:ring-[#526783]/15"
+                    className="mt-1.5 block w-full rounded-xl border border-[#0b1220]/10 bg-[#f0f2f6] px-3.5 py-3 text-sm font-medium text-[#0b1220] outline-none transition focus:border-[#1f46c9] focus:ring-2 focus:ring-[#1f46c9]/15"
                   />
                 </label>
-                <label className="block text-xs font-bold text-[#11192f]/60">
+                <label className="block text-xs font-bold text-[#0b1220]/60">
                   Time of day
                   <select
                     value={timeFilter}
                     onChange={event => setTimeFilter(event.target.value)}
                     aria-label="Filter events by time of day"
-                    className="mt-1.5 block w-full rounded-xl border border-[#11192f]/10 bg-[#f2f5fa] px-3.5 py-3 text-sm font-medium text-[#11192f] outline-none transition focus:border-[#526783] focus:ring-2 focus:ring-[#526783]/15"
+                    className="mt-1.5 block w-full rounded-xl border border-[#0b1220]/10 bg-[#f0f2f6] px-3.5 py-3 text-sm font-medium text-[#0b1220] outline-none transition focus:border-[#1f46c9] focus:ring-2 focus:ring-[#1f46c9]/15"
                   >
                     {TIME_FILTERS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
@@ -1008,26 +865,26 @@ export default function Happening() {
                 <h2 className="text-2xl font-black tracking-[-0.045em] sm:text-3xl">
                   {category === 'All events' ? 'Coming up around town' : `${category} events`}
                 </h2>
-                    <p className="mt-1 text-sm text-[#11192f]/65">A little something for your next day out.</p>
+                <p className="mt-1 text-sm text-[#0b1220]/65">A little something for your next day out.</p>
                 {onlineLoading ? (
-                  <p className="mt-2 text-xs text-[#11192f]/60">Searching online event listings for {district}… the first search for a city can take a moment.</p>
+                  <p className="mt-2 text-xs text-[#0b1220]/60">Searching online event listings for {district}… the first search for a city can take a moment.</p>
                 ) : onlineAvailable === false ? (
-                  <p className="mt-2 text-xs text-[#11192f]/60">Online listings are temporarily unavailable. Community events are still shown.</p>
+                  <p className="mt-2 text-xs text-[#0b1220]/60">Online listings are temporarily unavailable. Community events are still shown.</p>
                 ) : onlineEvents.length > 0 ? (
-                  <p className="mt-2 text-xs text-[#11192f]/60">
+                  <p className="mt-2 text-xs text-[#0b1220]/60">
                     {onlineMeta?.nearby
                       ? `No Meetup listings for ${district}, so these are from ${titleCase(onlineMeta.city)}, the nearest city.`
                       : `Includes ${onlineEvents.length} event${onlineEvents.length === 1 ? '' : 's'} found online.`}
                   </p>
                 ) : null}
                 {dayFilter && (
-                  <button onClick={() => setDayFilter('')} className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-[#11192f] transition hover:bg-[#ff5577] active:scale-95">
+                  <button onClick={() => setDayFilter('')} className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#0b1220]/10 bg-white px-3.5 py-1.5 text-xs font-bold text-[#0b1220] transition hover:bg-[#dfe6f8] active:scale-95">
                     Showing {dayLabel}
                     <X size={13} />
                   </button>
                 )}
               </div>
-              <span aria-live="polite" className="shrink-0 rounded-full bg-white px-3.5 py-2 text-sm font-bold text-[#46536f]">
+              <span aria-live="polite" className="shrink-0 rounded-full border border-[#0b1220]/10 bg-white px-3.5 py-2 text-sm font-bold text-[#1f46c9]">
                 {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
               </span>
             </div>
@@ -1044,19 +901,19 @@ export default function Happening() {
               </div>
             ) : (
               <Reveal>
-                <div className="rounded-[1.5rem] border border-dashed border-white/40 bg-white px-5 py-16 text-center text-[#11192f] sm:py-20">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f2f5fa] text-[#526783]">
+                <div className="rounded-[1.5rem] border border-dashed border-[#1f46c9]/30 bg-white px-5 py-16 text-center text-[#0b1220] sm:py-20">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#e9eefb] text-[#1f46c9]">
                     <CalendarDays size={29} />
                   </div>
                   <h3 className="mt-5 text-xl font-black tracking-tight">{query || dayFilter || timeFilter !== 'Any time' ? 'Nothing matches your filters' : 'A little quiet around here'}</h3>
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#11192f]/55">
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#0b1220]/55">
                     {loadFailed
                       ? 'We could not refresh the live listings. You can still explore saved events or add a community event.'
                       : 'No events are listed here right now. Know something happening in town? Add it to the community calendar.'}
                   </p>
                   <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                     {(query || dayFilter || timeFilter !== 'Any time' || category !== 'All events') && (
-                      <button onClick={() => { setQuery(''); setDayFilter(''); setTimeFilter('Any time'); setCategory('All events'); }} className="rounded-full border border-[#11192f]/15 px-5 py-3 text-sm font-semibold transition hover:bg-[#f2f5fa] active:scale-95">
+                      <button onClick={() => { setQuery(''); setDayFilter(''); setTimeFilter('Any time'); setCategory('All events'); }} className="rounded-full border border-[#0b1220]/15 px-5 py-3 text-sm font-semibold transition hover:bg-[#f0f2f6] active:scale-95">
                         Clear filters
                       </button>
                     )}
@@ -1115,25 +972,25 @@ export default function Happening() {
       {/* Event details modal */}
       {selectedEvent && (
         <Modal closing={detailClosing} onBackdrop={() => !detailClosing && closeDetails()} labelledBy="details-title">
-          <button onClick={closeDetails} aria-label="Close" className="absolute right-4 top-4 z-10 rounded-full bg-white/95 p-2.5 text-[#11192f] shadow-sm transition duration-200 hover:bg-white active:scale-90">
+          <button onClick={closeDetails} aria-label="Close" className="absolute right-4 top-4 z-10 rounded-full bg-white/95 p-2.5 text-[#0b1220] shadow-sm transition duration-200 hover:bg-white active:scale-90">
             <X size={19} />
           </button>
 
           <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${thinScroll}`}>
             {eventImageUrl(selectedEvent) ? (
-              <div className="relative h-56 bg-[#f4f7fb] sm:h-72">
+              <div className="relative h-56 bg-[#e9eefb] sm:h-72">
                 <EventImage src={eventImageUrl(selectedEvent)} category={selectedEvent.category} alt={selectedEvent.title || selectedEvent.name || 'Event'} />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#11192f]/60 via-transparent to-[#11192f]/15" />
-                <span className="absolute bottom-4 left-5 rounded-full bg-[#ff5577] px-3 py-1.5 text-xs font-bold text-[#11192f]">{selectedEvent.category || 'Community'}</span>
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0b1220]/60 via-transparent to-[#0b1220]/15" />
+                <span className="absolute bottom-4 left-5 rounded-full bg-[#f2b53d] px-3 py-1.5 text-xs font-bold text-[#0b1220]">{selectedEvent.category || 'Community'}</span>
               </div>
-            ) : <div className="relative h-56 bg-[#f4f7fb] sm:h-72"><EventImage category={selectedEvent.category} alt={selectedEvent.title || selectedEvent.name || 'Event'} /><div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#11192f]/40 via-transparent to-transparent" /><span className="absolute bottom-4 left-5 rounded-full bg-[#ff5577] px-3 py-1.5 text-xs font-bold text-[#11192f]">{selectedEvent.category || 'Community'}</span></div>}
+            ) : <div className="relative h-56 bg-[#e9eefb] sm:h-72"><EventImage category={selectedEvent.category} alt={selectedEvent.title || selectedEvent.name || 'Event'} /><div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0b1220]/40 via-transparent to-transparent" /><span className="absolute bottom-4 left-5 rounded-full bg-[#f2b53d] px-3 py-1.5 text-xs font-bold text-[#0b1220]">{selectedEvent.category || 'Community'}</span></div>}
 
             <div className="p-5 sm:p-8">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#526783]">Discover something local</p>
+              <p className="mb-3 text-sm font-bold text-[#1f46c9]">Discover something local</p>
               <h2 id="details-title" className="text-3xl font-black leading-tight tracking-[-0.055em] sm:text-4xl">{selectedEvent.title || selectedEvent.name}</h2>
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#f4f7fb] px-3.5 py-2 text-sm font-semibold text-[#46536f]">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#e9eefb] px-3.5 py-2 text-sm font-semibold text-[#14308f]">
                   <CalendarDays size={15} />
                   {formatDate(selectedEvent.date || selectedEvent.startDate)}
                 </span>
@@ -1152,36 +1009,36 @@ export default function Happening() {
                 {!selectedEvent.scraped && (
                   <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-medium">
                     <Users size={15} />
-                    {registrationCount(selectedEvent)} registered <span className="text-xs text-[#11192f]/45">demo</span>
+                    {registrationCount(selectedEvent)} registered <span className="text-xs text-[#0b1220]/45">demo</span>
                   </span>
                 )}
               </div>
 
               <div className="mt-7 space-y-3">
                 {(selectedEvent.venue || selectedEvent.location) && (
-                  <div className="flex items-start gap-3 rounded-xl border border-[#11192f]/10 bg-white p-4">
-                    <MapPin size={19} className="mt-0.5 shrink-0 text-[#526783]" />
+                  <div className="flex items-start gap-3 rounded-xl border border-[#0b1220]/10 bg-white p-4">
+                    <MapPin size={19} className="mt-0.5 shrink-0 text-[#1f46c9]" />
                     <div>
                       <p className="text-sm font-bold">Where</p>
-                      <p className="mt-1 text-sm leading-6 text-[#11192f]/65">{selectedEvent.venue || selectedEvent.location}</p>
+                      <p className="mt-1 text-sm leading-6 text-[#0b1220]/65">{selectedEvent.venue || selectedEvent.location}</p>
                     </div>
                   </div>
                 )}
                 {selectedEvent.organizer && (
-                  <div className="flex items-start gap-3 rounded-xl border border-[#11192f]/10 bg-white p-4">
-                    <Users size={19} className="mt-0.5 shrink-0 text-[#526783]" />
+                  <div className="flex items-start gap-3 rounded-xl border border-[#0b1220]/10 bg-white p-4">
+                    <Users size={19} className="mt-0.5 shrink-0 text-[#1f46c9]" />
                     <div>
                       <p className="text-sm font-bold">Organiser</p>
-                      <p className="mt-1 text-sm text-[#11192f]/65">{selectedEvent.organizer}</p>
+                      <p className="mt-1 text-sm text-[#0b1220]/65">{selectedEvent.organizer}</p>
                     </div>
                   </div>
                 )}
                 {selectedEvent.price && (
-                  <div className="flex items-start gap-3 rounded-xl border border-[#11192f]/10 bg-white p-4">
-                    <Ticket size={19} className="mt-0.5 shrink-0 text-[#526783]" />
+                  <div className="flex items-start gap-3 rounded-xl border border-[#0b1220]/10 bg-white p-4">
+                    <Ticket size={19} className="mt-0.5 shrink-0 text-[#1f46c9]" />
                     <div>
                       <p className="text-sm font-bold">Ticket price</p>
-                      <p className="mt-1 text-sm text-[#11192f]/65">{selectedEvent.price}</p>
+                      <p className="mt-1 text-sm text-[#0b1220]/65">{selectedEvent.price}</p>
                     </div>
                   </div>
                 )}
@@ -1190,9 +1047,9 @@ export default function Happening() {
               {selectedEvent.registration && (
                 <div className="mt-6">
                   <Panel icon={Ticket} title="How to participate">
-                    <p className="mt-2 text-sm leading-6 text-[#11192f]/65">{selectedEvent.registration.method}</p>
+                    <p className="mt-2 text-sm leading-6 text-[#0b1220]/65">{selectedEvent.registration.method}</p>
                     {selectedEvent.registration.phone && (
-                      <a href={selectedEvent.registration.phoneHref || `tel:${selectedEvent.registration.phone}`} className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#f4f7fb] px-4 py-2.5 text-sm font-bold text-[#46536f] transition hover:bg-[#edf2f8]">
+                      <a href={selectedEvent.registration.phoneHref || `tel:${selectedEvent.registration.phone}`} className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#e9eefb] px-4 py-2.5 text-sm font-bold text-[#14308f] transition hover:bg-[#cfdaf5]">
                         <Phone size={15} />
                         {selectedEvent.registration.contactName}: {selectedEvent.registration.phone}
                       </a>
@@ -1204,7 +1061,7 @@ export default function Happening() {
               <div className="mt-7">
                 <h3 className="text-lg font-black tracking-tight">About this event</h3>
                 {selectedEvent.description ? (
-                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-[#11192f]/65">{selectedEvent.description}</p>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-[#0b1220]/65">{selectedEvent.description}</p>
                 ) : detailsLoading ? (
                   <div className="mt-3 space-y-2" aria-busy="true">
                     <div className={`h-3.5 w-full rounded-full ${skeleton}`} />
@@ -1212,7 +1069,7 @@ export default function Happening() {
                     <div className={`h-3.5 w-2/3 rounded-full ${skeleton}`} />
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm leading-6 text-[#11192f]/50">More information is not available in the public listing yet.</p>
+                  <p className="mt-2 text-sm leading-6 text-[#0b1220]/50">More information is not available in the public listing yet.</p>
                 )}
               </div>
 
@@ -1221,7 +1078,7 @@ export default function Happening() {
                   href={selectedEvent.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#46536f] underline decoration-[#46536f]/30 underline-offset-4 hover:decoration-[#46536f]"
+                  className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#1f46c9] underline decoration-[#1f46c9]/30 underline-offset-4 hover:decoration-[#1f46c9]"
                 >
                   View original listing
                   <ArrowUpRight size={15} />

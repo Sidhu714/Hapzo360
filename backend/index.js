@@ -1014,6 +1014,14 @@ async function fetchJson(url, headers = {}) {
     }
 
     return await response.json();
+  } catch (error) {
+    const errorCode = error?.cause?.code || error?.code;
+    const detail = controller.signal.aborted
+      ? `Upstream request timed out after ${TIMEOUT_MS}ms`
+      : errorCode
+        ? `${error.message} (${errorCode})`
+        : error.message;
+    throw new Error(detail || "Upstream request failed", { cause: error });
   } finally {
     clearTimeout(timeout);
   }
@@ -1411,8 +1419,23 @@ app.get("/api/prices", async (req, res) => {
       .filter((result) => result.status === "fulfilled")
       .map((result) => result.value);
 
-    if (successful.length === 0) {
-      throw new Error("All price providers failed");
+    const hasPriceData = successful.some(
+      (result) => Array.isArray(result.data) && result.data.length > 0
+    );
+
+    if (!hasPriceData) {
+      return res.status(502).json({
+        error: "No price providers returned data",
+        message: "The mandi price source is unavailable. Check the provider details and try again.",
+        sources: results.map((result, index) => ({
+          id: index === 0 ? "agmarknet" : "yarn",
+          ok: result.status === "fulfilled" && result.value.data.length > 0,
+          error: result.status === "rejected"
+            ? result.reason?.message || "Provider request failed"
+            : "No records returned",
+          count: result.status === "fulfilled" ? result.value.data.length : 0,
+        })),
+      });
     }
 
     const allItems = successful.flatMap((result) => result.data);
