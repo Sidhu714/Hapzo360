@@ -5,6 +5,7 @@ import AddEventModal from './AddEventModal';
 import { DISTRICTS } from '../../data/indiaLocations';
 import API_BASE_URL from '../../config/api';
 import EventPulse from './EventCard';
+import { createClipRecorder, canRecordVideo, saveClip } from './FaceClip';
 
 const API_URL = import.meta.env.VITE_EVENTS_API_URL || '';
 const ONLINE_EVENTS_API_URL = `${API_BASE_URL}/api/happenings/search`;
@@ -21,6 +22,7 @@ const TIME_FILTERS = [
 ];
 const OTP_VALID_MS = 5 * 60 * 1000;
 const EXIT_MS = 200;
+const FACE_CHECK_MS = 30000; // whole live check must finish inside 30 seconds
 let faceLandmarkerPromise;
 
 /* ---------- Tailwind class presets ---------- */
@@ -30,14 +32,28 @@ const hideScroll = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 const btnPrimary = 'inline-flex items-center justify-center gap-2 rounded-full bg-[#1f46c9] font-bold text-white transition duration-200 hover:bg-[#14308f] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fafbfc] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none';
 const skeleton = 'animate-pulse bg-[#e8ebf0] motion-reduce:animate-none';
 
-const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 /* ---------- Helpers ---------- */
 function loadFaceLandmarker() {
-  if (!faceLandmarkerPromise) faceLandmarkerPromise = FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm')
-    .then(fileset => FaceLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task' }, runningMode: 'VIDEO', numFaces: 1 }));
+  if (!faceLandmarkerPromise) {
+    faceLandmarkerPromise = FilesetResolver
+      .forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm')
+      .then(fileset =>
+        FaceLandmarker.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          outputFacialTransformationMatrixes: true,
+        })
+      )
+      .catch(error => { faceLandmarkerPromise = null; throw error; });
+  }
   return faceLandmarkerPromise;
 }
+
 function readEvents(key) {
   try {
     const value = JSON.parse(window.localStorage.getItem(key) || '[]');
@@ -64,6 +80,26 @@ function formatDate(value) {
   if (!value) return 'Date to be announced';
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
+
+function todayInIndia() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const part = type => parts.find(item => item.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function formatEventTime(value) {
+  const time = String(value || '').trim();
+  if (!time) return '';
+  const twelveHour = time.match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)$/i);
+  if (twelveHour) return `${Number(twelveHour[1])}:${twelveHour[2]} ${/p/i.test(twelveHour[3]) ? 'PM' : 'AM'}`;
+  const twentyFourHour = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!twentyFourHour) return time;
+  const hour = Number(twentyFourHour[1]);
+  if (hour > 23) return time;
+  return `${hour % 12 || 12}:${twentyFourHour[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
 }
 
 /* Reads the start clock time ("6:30 PM" or "18:30") from an event, if it has one. */
@@ -110,6 +146,7 @@ function registrationCount(event) {
   for (const char of String(event.id || event.title || event.name || 'event')) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return hash % 21;
 }
+// Also strips snapshots saved by older versions of this page.
 const stripHeavy = events => events.map(({ verifiedSnapshots, ...rest }) => rest);
 
 /* Flips to true one frame after mount so Tailwind transitions can play. */
@@ -327,7 +364,7 @@ const EventCard = memo(function EventCard({ event, index, onOpen }) {
             {(event.time || event.startTime) && (
               <div className="flex items-start gap-2.5">
                 <Clock3 size={16} className="mt-0.5 shrink-0 text-[#5b6575]" />
-                <span>{event.time || event.startTime}</span>
+                <span>{formatEventTime(event.time || event.startTime)}</span>
               </div>
             )}
             {venueLabel(event) && (
@@ -393,6 +430,20 @@ function Panel({ icon: Icon, title, badge, children }) {
   );
 }
 
+function getHeadPose(matrixData) {
+  if (!matrixData || matrixData.length !== 16) return null;
+  const m = matrixData;
+  // Yaw (left/right head turn) from the 4x4 transformation matrix.
+  const yaw = Math.atan2(-m[8], Math.sqrt(m[0] * m[0] + m[4] * m[4])) * (180 / Math.PI);
+  return { yaw };
+}
+
+function normalizeAngle(angle) {
+  return ((angle + 180) % 360 + 360) % 360 - 180;
+}
+
+const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
+
 /* ---------- Main component ---------- */
 export default function Happening() {
   const [events, setEvents] = useState(() => mergeEvents(readEvents(EVENT_CACHE_KEY), readEvents(USER_EVENTS_KEY)));
@@ -412,7 +463,7 @@ export default function Happening() {
   const [addClosing, setAddClosing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [detailClosing, setDetailClosing] = useState(false);
-  const [form, setForm] = useState({ title: '', date: '', time: '', venue: '', category: 'Community', description: '', image: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -429,7 +480,8 @@ export default function Happening() {
   const [faceState, setFaceState] = useState('idle'); // idle, starting, scanning, verified
   const [faceStep, setFaceStep] = useState(0);
   const [faceMessage, setFaceMessage] = useState('');
-  const [capturedSnapshots, setCapturedSnapshots] = useState([]);
+  const [faceSecondsLeft, setFaceSecondsLeft] = useState(FACE_CHECK_MS / 1000);
+  const [clip, setClip] = useState(null); // { blob, url, type, size }: the recorded live video
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -439,6 +491,17 @@ export default function Happening() {
   const poseSinceRef = useRef(0);
   const closeTimerRef = useRef(0);
   const detailTimerRef = useRef(0);
+  const recorderRef = useRef(null);
+  const neutralYawRef = useRef(null);
+  const smoothedYawRef = useRef(null);
+
+  // Drops the recorded clip and frees its object URL.
+  const discardClip = useCallback(() => {
+    setClip(current => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
 
   // Smooth anchor scrolling, using Tailwind's own class on <html>.
   useEffect(() => {
@@ -460,79 +523,190 @@ export default function Happening() {
 
   /* ---------- Camera ---------- */
   const stopCamera = useCallback(() => {
+    // Abandons a take that is still recording. A clip that was already stopped is left alone.
+    recorderRef.current?.cancel();
+    recorderRef.current = null;
     window.cancelAnimationFrame(faceFrameRef.current);
     streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    landmarkerRef.current?.close?.();
-    landmarkerRef.current = null;
-    faceLandmarkerPromise = null;
+    landmarkerRef.current = null; // keep the model loaded so retries start instantly
   }, []);
 
-  useEffect(() => () => { stopCamera(); window.clearTimeout(closeTimerRef.current); window.clearTimeout(detailTimerRef.current); }, [stopCamera]);
+  useEffect(() => () => {
+    stopCamera();
+    window.clearTimeout(closeTimerRef.current);
+    window.clearTimeout(detailTimerRef.current);
+    faceLandmarkerPromise?.then(landmarker => landmarker.close?.()).catch(() => { });
+    faceLandmarkerPromise = null;
+  }, [stopCamera]);
+
   useEffect(() => { if (faceState === 'verified') stopCamera(); }, [faceState, stopCamera]);
 
-  const captureSnapshot = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    try {
-      const width = 240;
-      const ratio = (video.videoHeight || 3) / (video.videoWidth || 4);
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = Math.round(width * ratio);
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      setCapturedSnapshots(prev => [...prev, canvas.toDataURL('image/jpeg', 0.6)]);
-    } catch { /* ignore snapshot error */ }
-  };
-
+  /* ---------- 30-second limit for the whole live check ---------- */
   useEffect(() => {
-    if (faceState !== 'scanning' || !videoRef.current || !landmarkerRef.current) return undefined;
+    if (faceState !== 'scanning') return undefined;
+
+    const deadline = Date.now() + FACE_CHECK_MS;
+    setFaceSecondsLeft(Math.ceil(FACE_CHECK_MS / 1000));
+
+    const id = window.setInterval(() => {
+      const left = Math.ceil((deadline - Date.now()) / 1000);
+      if (left <= 0) {
+        window.clearInterval(id);
+        stopCamera(); // cancels the recording, so no clip is kept
+        setFaceState('idle');
+        setFaceStep(0);
+        setFaceMessage("Time's up. Look straight, then turn left, then right within 30 seconds. Please try again.");
+        return;
+      }
+      setFaceSecondsLeft(left);
+    }, 250);
+
+    return () => window.clearInterval(id);
+  }, [faceState, stopCamera]);
+
+  /* ---------- Head-pose scan: straight -> left -> right ---------- */
+  useEffect(() => {
+    if (faceState !== 'scanning' || !videoRef.current || !landmarkerRef.current) {
+      return undefined;
+    }
+
     let live = true;
+
+    const HOLD_DURATION = 300;       // ms a pose must be held
+    const STRAIGHT_THRESHOLD = 15;   // degrees
+    const TURN_THRESHOLD = 18;       // degrees
+    const LEFT_TURN_SIGN = -1;        // change to -1 if left/right are reversed on your camera
+
     const scan = () => {
       if (!live) return;
+
       const video = videoRef.current;
+
       if (video?.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
         lastVideoTimeRef.current = video.currentTime;
+
         const result = landmarkerRef.current?.detectForVideo(video, performance.now());
         const landmarks = result?.faceLandmarks?.[0];
-        if (landmarks) {
-          const nose = landmarks[1]?.x; const leftEye = landmarks[33]?.x; const rightEye = landmarks[263]?.x;
-          const center = (leftEye + rightEye) / 2; const offset = nose - center;
-          const expected = faceStep === 0 ? Math.abs(offset) < 0.045 : faceStep === 1 ? offset > 0.075 : offset < -0.075;
-          if (expected) {
-            if (!poseSinceRef.current) poseSinceRef.current = performance.now();
-            if (performance.now() - poseSinceRef.current >= 650) {
-              poseSinceRef.current = 0;
-              captureSnapshot();
-              if (faceStep >= 2) {
-                setFaceStep(3);
-                setFaceState('verified');
-                setFaceMessage('Head-turn check complete.');
-              } else {
-                setFaceStep(faceStep + 1);
-              }
+        const matrix = result?.facialTransformationMatrixes?.[0]?.data;
+
+        if (landmarks && matrix) {
+          const pose = getHeadPose(matrix);
+
+          if (pose) {
+            const rawYaw = pose.yaw;
+
+            // Light smoothing for quick response.
+            const previous = smoothedYawRef.current;
+            const smoothYaw = previous === null ? rawYaw : previous * 0.5 + rawYaw * 0.5;
+            smoothedYawRef.current = smoothYaw;
+
+            // Capture the neutral (straight) position first.
+            if (neutralYawRef.current === null && faceStep === 0) {
+              neutralYawRef.current = smoothYaw;
             }
-          } else poseSinceRef.current = 0;
-        } else poseSinceRef.current = 0;
+
+            const relativeYaw = normalizeAngle(smoothYaw - neutralYawRef.current);
+
+            const expected =
+              faceStep === 0
+                ? Math.abs(relativeYaw) < STRAIGHT_THRESHOLD
+                : faceStep === 1
+                  ? relativeYaw * LEFT_TURN_SIGN > TURN_THRESHOLD
+                  : relativeYaw * LEFT_TURN_SIGN < -TURN_THRESHOLD;
+
+            if (expected) {
+              if (!poseSinceRef.current) poseSinceRef.current = performance.now();
+
+              if (performance.now() - poseSinceRef.current >= HOLD_DURATION) {
+                poseSinceRef.current = 0;
+
+                if (faceStep >= 2) {
+                  // Right turn done: save the clip right away.
+                  recorderRef.current?.stop();
+                  setFaceStep(3);
+                  setFaceState('verified');
+                  setFaceMessage('Live video check complete.');
+                } else {
+                  setFaceStep(step => step + 1);
+                }
+              }
+            } else {
+              poseSinceRef.current = 0;
+            }
+          } else {
+            poseSinceRef.current = 0;
+          }
+        } else {
+          poseSinceRef.current = 0;
+        }
       }
+
       faceFrameRef.current = window.requestAnimationFrame(scan);
     };
+
     faceFrameRef.current = window.requestAnimationFrame(scan);
-    return () => { live = false; window.cancelAnimationFrame(faceFrameRef.current); };
+
+    return () => {
+      live = false;
+      window.cancelAnimationFrame(faceFrameRef.current);
+    };
   }, [faceState, faceStep]);
 
   const startFaceCheck = async () => {
-    setFaceMessage(''); setFaceStep(0); setFaceState('starting'); poseSinceRef.current = 0; lastVideoTimeRef.current = -1; setCapturedSnapshots([]);
+    if (!canRecordVideo()) {
+      setFaceMessage('This browser cannot record video. Try Chrome, Edge, Firefox or Safari 14.5+.');
+      return;
+    }
+    setFaceMessage('');
+    setFaceStep(0);
+    setFaceState('starting');
+
+    poseSinceRef.current = 0;
+    lastVideoTimeRef.current = -1;
+    neutralYawRef.current = null;
+    smoothedYawRef.current = null;
+
+    discardClip();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      // Camera and model load in parallel.
+      const [stream, landmarker] = await Promise.all([
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
+          audio: false,
+        }),
+        loadFaceLandmarker(),
+      ]);
       streamRef.current = stream;
-      const landmarker = await loadFaceLandmarker(); landmarkerRef.current = landmarker;
+      landmarkerRef.current = landmarker;
+
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+
+      // Safety limit slightly above 30 s. The component timer fails the check at 30 s first.
+      recorderRef.current = createClipRecorder(stream, setClip, { maxMs: FACE_CHECK_MS + 2000 });
+      recorderRef.current?.start();
       setFaceState('scanning');
     } catch (error) {
-      stopCamera(); setFaceState('idle');
-      setFaceMessage(error?.name === 'NotAllowedError' ? 'Allow camera access in your browser to continue.' : 'The camera or face-check model could not start. Check your connection and try again.');
+      stopCamera();
+      setFaceState('idle');
+      setFaceMessage(error?.name === 'NotAllowedError'
+        ? 'Allow camera access in your browser to continue.'
+        : 'The camera or face-check model could not start. Check your connection and try again.');
     }
+  };
+
+  const retakeFaceCheck = () => {
+    discardClip();
+
+    neutralYawRef.current = null;
+    smoothedYawRef.current = null;
+    poseSinceRef.current = 0;
+
+    setFaceState('idle');
+    setFaceStep(0);
+    setFaceMessage('');
+    setFaceSecondsLeft(FACE_CHECK_MS / 1000);
   };
 
   /* ---------- Demo OTP ---------- */
@@ -656,14 +830,17 @@ export default function Happening() {
   };
 
   /* ---------- Modals ---------- */
-  const openAdd = useCallback(() => { setFormError(''); setAddClosing(false); setAddOpen(true); }, []);
+  const openAdd = useCallback(() => {
+    setFormError(''); setAddClosing(false); setAddOpen(true);
+    loadFaceLandmarker().catch(() => { }); // preload the model so the check starts fast
+  }, []);
   const closeAdd = useCallback(() => {
-    stopCamera(); setFaceState('idle'); setFaceStep(0); setFaceMessage('');
-    setOtpState('idle'); setOtpSeconds(0); setOtp(''); setMobile(''); setOtpMessage(''); setCapturedSnapshots([]);
+    stopCamera(); setFaceState('idle'); setFaceStep(0); setFaceMessage(''); setFaceSecondsLeft(FACE_CHECK_MS / 1000);
+    setOtpState('idle'); setOtpSeconds(0); setOtp(''); setMobile(''); setOtpMessage(''); discardClip();
     setAddClosing(true);
     window.clearTimeout(closeTimerRef.current);
     closeTimerRef.current = window.setTimeout(() => { setAddOpen(false); setAddClosing(false); }, EXIT_MS);
-  }, [stopCamera]);
+  }, [stopCamera, discardClip]);
   const openDetails = useCallback(event => { window.clearTimeout(detailTimerRef.current); setDetailClosing(false); setSelectedEvent(event); }, []);
   const closeDetails = useCallback(() => {
     setDetailClosing(true);
@@ -684,41 +861,65 @@ export default function Happening() {
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey); };
   }, [addOpen, addClosing, selectedEvent, detailClosing, closeAdd, closeDetails]);
 
-  const onFieldChange = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }));
+  const onFieldChange = event => {
+    const { name, value, checked, type } = event.target;
+    if (name === 'date') {
+      if (value && value < todayInIndia()) {
+        setForm(current => ({ ...current, date: '' }));
+        setFormError('Past dates are unavailable. Choose today or a future date.');
+        return;
+      }
+      setFormError('');
+    }
+    const nextValue = type === 'checkbox'
+      ? checked
+      : name === 'contactPhone'
+        ? value.replace(/\D/g, '').slice(0, 10)
+        : name === 'timeHour' || name === 'timeMinute'
+          ? value.replace(/\D/g, '').slice(0, 2)
+          : value;
+    setForm(current => ({ ...current, [name]: nextValue }));
+  };
 
   const addEvent = event => {
     event.preventDefault(); setFormError('');
     if (otpState !== 'verified') { setFormError('Verify your mobile number with the demo code first.'); return; }
-    if (faceState !== 'verified') { setFormError('Complete the camera head-turn check first.'); return; }
+    if (faceState !== 'verified' || !clip) { setFormError('Complete the live video check first.'); return; }
+    if (!form.termsAccepted) { setFormError('Please agree to the event posting Terms & Conditions before publishing.'); return; }
+    if (!form.date || form.date < todayInIndia()) { setFormError('Choose today or a future date for the event.'); return; }
+    if (form.contactPhone && !/^\d{10}$/.test(form.contactPhone)) { setFormError('Enter a valid 10-digit contact phone number.'); return; }
+    const hasTime = Boolean(form.timeHour);
+    const hour12 = Number(form.timeHour);
+    const minute = Number(form.timeMinute || 0);
+    if (hasTime && (hour12 < 1 || hour12 > 12 || minute < 0 || minute > 59)) {
+      setFormError('Enter a valid time: hour 1–12 and minutes 00–59.');
+      return;
+    }
 
     const id = globalThis.crypto?.randomUUID?.() || `local-${Date.now()}`;
-    const time = form.time || '12:00';
+    const hour24 = hasTime ? (hour12 % 12) + (form.timePeriod === 'PM' ? 12 : 0) : 12;
+    const time24 = `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const displayTime = hasTime ? `${hour12}:${String(minute).padStart(2, '0')} ${form.timePeriod}` : '';
     const newEvent = {
-      id: `happening-${id}`, title: form.title.trim(), date: new Date(`${form.date}T${time}:00+05:30`).toISOString(),
-      time: form.time, venue: form.venue.trim(), category: form.category, description: form.description.trim(), image: form.image,
+      id: `happening-${id}`, title: form.title.trim(), date: new Date(`${form.date}T${time24}:00+05:30`).toISOString(),
+      time: displayTime, venue: form.venue.trim(), contactPhone: form.contactPhone, category: form.category, sector: form.sector, specialty: form.specialty, description: form.description.trim(), image: form.image,
       registeredCount: Math.floor(Math.random() * 21), source: 'Community', createdByUser: true,
-      verifiedSnapshots: capturedSnapshots
+      hasVerificationClip: true
     };
 
-    let stored = newEvent;
-    let saved = saveEvents(USER_EVENTS_KEY, mergeEvents([stored], readEvents(USER_EVENTS_KEY)));
-    let snapshotsDropped = false;
-    if (!saved) {
-      stored = { ...newEvent, verifiedSnapshots: [] };
-      saved = saveEvents(USER_EVENTS_KEY, mergeEvents([stored], readEvents(USER_EVENTS_KEY)));
-      snapshotsDropped = saved;
-    }
+    const saved = saveEvents(USER_EVENTS_KEY, mergeEvents([newEvent], readEvents(USER_EVENTS_KEY)));
     if (!saved) { setFormError('This device could not save the event. Free some browser storage and try again.'); return; }
+    // The video goes to IndexedDB (localStorage is far too small for it), keyed by the event id.
+    saveClip(newEvent.id, clip.blob).catch(() => { });
 
-    const next = mergeEvents([stored], events);
+    const next = mergeEvents([newEvent], events);
     setEvents(next); saveEvents(EVENT_CACHE_KEY, stripHeavy(next));
-    setForm({ title: '', date: '', time: '', venue: '', category: 'Community', description: '', image: '' });
+    setForm(EMPTY_FORM);
     closeAdd();
-    setToast(snapshotsDropped ? 'Event published. Storage was full, so snapshots were not kept.' : 'Event published and saved on this device.');
+    setToast('Event published and saved on this device.');
   };
 
   const scrollToEvents = () => document.getElementById('events-list')?.scrollIntoView({ behavior: 'smooth' });
-  const pickDay = useCallback(key => { setDayFilter(key); if (key) document.getElementById('events-list')?.scrollIntoView({ behavior: 'smooth' }); }, []);
   const dayLabel = dayFilter ? formatDate(dayFilter) : '';
 
   return (
@@ -728,7 +929,7 @@ export default function Happening() {
 
       <main id="top" className="relative z-10">
         {/* Hero */}
-          <section className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 md:py-20 lg:px-12">
+        <section className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8 md:py-20 lg:px-12">
           <div>
             <Reveal>
               <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#0b1220]/15 bg-white px-4 py-2 text-sm font-semibold text-[#14308f]">
@@ -770,7 +971,6 @@ export default function Happening() {
               <span className="flex items-center gap-2"><CalendarDays size={15} className="text-[#1f46c9]" />Discover what's next</span>
             </div>
           </div>
-
         </section>
 
         {/* Ticker tape of real listings */}
@@ -938,6 +1138,7 @@ export default function Happening() {
           onClose={closeAdd}
           onBackdrop={() => !addClosing && closeAdd()}
           form={form}
+          minDate={todayInIndia()}
           onFieldChange={onFieldChange}
           onSubmit={addEvent}
           formError={formError}
@@ -958,7 +1159,9 @@ export default function Happening() {
           faceState={faceState}
           faceStep={faceStep}
           faceMessage={faceMessage}
-          capturedSnapshots={capturedSnapshots}
+          faceSecondsLeft={faceSecondsLeft}
+          clip={clip}
+          onRetake={retakeFaceCheck}
           videoRef={videoRef}
           startFaceCheck={startFaceCheck}
           stopCamera={stopCamera}
@@ -997,13 +1200,18 @@ export default function Happening() {
                 {(selectedEvent.time || selectedEvent.startTime) && (
                   <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-medium">
                     <Clock3 size={15} />
-                    {selectedEvent.time || selectedEvent.startTime}
+                    {formatEventTime(selectedEvent.time || selectedEvent.startTime)}
                   </span>
                 )}
                 {selectedEvent.mode && (
                   <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-medium">
                     <MapPin size={15} />
                     {selectedEvent.mode}
+                  </span>
+                )}
+                {(selectedEvent.sector || selectedEvent.specialty) && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-sm font-medium">
+                    {selectedEvent.sector}{selectedEvent.sector && selectedEvent.specialty ? ' · ' : ''}{selectedEvent.specialty}
                   </span>
                 )}
                 {!selectedEvent.scraped && (
@@ -1023,6 +1231,15 @@ export default function Happening() {
                       <p className="mt-1 text-sm leading-6 text-[#0b1220]/65">{selectedEvent.venue || selectedEvent.location}</p>
                     </div>
                   </div>
+                )}
+                {selectedEvent.contactPhone && (
+                  <a href={`tel:${selectedEvent.contactPhone}`} className="flex items-start gap-3 rounded-xl border border-[#0b1220]/10 bg-white p-4 transition hover:border-[#1f46c9]/35">
+                    <Phone size={19} className="mt-0.5 shrink-0 text-[#1f46c9]" />
+                    <div>
+                      <p className="text-sm font-bold">Contact phone</p>
+                      <p className="mt-1 text-sm text-[#0b1220]/65">{selectedEvent.contactPhone}</p>
+                    </div>
+                  </a>
                 )}
                 {selectedEvent.organizer && (
                   <div className="flex items-start gap-3 rounded-xl border border-[#0b1220]/10 bg-white p-4">

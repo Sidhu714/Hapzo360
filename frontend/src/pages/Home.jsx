@@ -328,7 +328,7 @@ const TechGraphic = makeGraphic(techScene, 3, true);
 /*  glow / mix = light blobs behind the illustration                   */
 /* ------------------------------------------------------------------ */
 const TONES = {
-  sand: { base: '#f5f6f8', mid: '#e9eefb', glow: '#6f91e8', mix: '#b7c9f4', accent: '#1f46c9' },
+  happeningsBlue: { base: '#253C6D', mid: '#314F83', glow: '#6F91CB', mix: '#1A2F56', accent: '#C9F36A' },
   forest: { base: '#1b0a12', mid: '#c2411f', glow: '#ffb04d', mix: '#d6336c', accent: '#ffb04d' },
   sky: { base: '#052f2a', mid: '#0d8560', glow: '#34d399', mix: '#0ea5e9', accent: '#ff4f86' },
   rose: { base: '#4a0d33', mid: '#c0266b', glow: '#ff7ab6', mix: '#7c3aed', accent: '#3563ff' },
@@ -339,7 +339,7 @@ const TONES = {
 // If a key is missing, the English text below is shown.
 // Desktop grid keeps all cards the same size, with the final two centered below.
 const SERVICES = [
-  { id: 'happenings', to: '/services/happenings', tone: 'sand', title: 'Happenings', desc: 'Workshops and hiring events, happening near you.', cta: 'See what is on', Graphic: HappeningsGraphic, className: 'lg:col-span-4' },
+  { id: 'happenings', to: '/services/happenings', tone: 'happeningsBlue', title: 'Happenings', desc: 'Workshops and hiring events, happening near you.', cta: 'See what is on', Graphic: HappeningsGraphic, className: 'lg:col-span-4' },
   { id: 'openings', to: '/services/openings', tone: 'forest', title: 'Openings', desc: 'Great teams are hiring. Your next role starts here.', cta: 'View all jobs', Graphic: OpeningsGraphic, className: 'lg:col-span-4' },
   { id: 'trends', to: '/services/trends', tone: 'sky', title: 'Trends', desc: 'See what’s rising before everyone else does.', cta: 'Read the trends', Graphic: TrendsGraphic, className: 'lg:col-span-4' },
   { id: 'price-list', to: '/services/price-list', tone: 'rose', title: 'Price List', desc: 'Know the price before you make your next move.', cta: 'View prices', Graphic: PriceGraphic, className: 'service-card--wide lg:col-span-4 lg:col-start-3' },
@@ -395,7 +395,7 @@ export default function ServiceGrid() {
             onPointerMove={spotlight}
             style={{
               '--i': index,
-              '--card-ink': service.id === 'happenings' ? '#0b1220' : '#ffffff',
+              '--card-ink': '#ffffff',
               '--c-base': tone.base,
               '--c-mid': tone.mid,
               '--c-glow': tone.glow,

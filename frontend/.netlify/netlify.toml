@@ -1,9 +1,7 @@
+functionsDirectory = "D:\\Projects\\hapzo\\frontend\\netlify\\functions"
+functionsDirectoryOrigin = "config"
 plugins = []
 headers = []
-
-[functions]
-
-[functions."*"]
 
 [build]
 publish = "D:\\Projects\\hapzo\\frontend\\dist"
@@ -11,6 +9,7 @@ publishOrigin = "ui"
 commandOrigin = "ui"
 base = "D:\\Projects\\hapzo\\frontend"
 command = "npm run build"
+functions = "D:\\Projects\\hapzo\\frontend\\netlify\\functions"
 
 [build.environment]
 
@@ -25,6 +24,22 @@ command = "npm run build"
 [build.processing.js]
 
 [build.services]
+
+[functions]
+
+[functions."*"]
+
+[[redirects]]
+from = "/api/prices"
+to = "/.netlify/functions/prices"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
 
 [[redirects]]
 from = "/*"

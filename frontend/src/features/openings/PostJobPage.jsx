@@ -213,6 +213,7 @@ export default function PostJobPage() {
 
   const [fee, setFee] = useState(null);
   const [err, setErr] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [posted, setPosted] = useState(false);
 
@@ -535,6 +536,11 @@ export default function PostJobPage() {
     Math.max(jobs.length - 1, 0) * PRICING.additionalJob;
 
   const payAndPublish = async () => {
+    if (!termsAccepted) {
+      setErr('Please agree to the Hapzo360 Terms & Conditions before publishing these jobs.');
+      return;
+    }
+
     setBusy(true);
     setErr('');
 
@@ -1501,6 +1507,22 @@ export default function PostJobPage() {
                 <ShieldCheck size={17} />
                 <span>{t('post.demoPayment')}</span>
               </div>
+
+              <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[#e1e8d8] bg-[#f8faf4] p-4 text-sm leading-5 text-[#435246]">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(event) => setTermsAccepted(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#315844]"
+                />
+                <span>
+                  I agree to the Hapzo360{' '}
+                  <Link to="/terms-and-conditions" target="_blank" rel="noreferrer" className="font-bold text-[#315844] underline underline-offset-2">
+                    Terms &amp; Conditions
+                  </Link>{' '}
+                  for employers and job listings.
+                </span>
+              </label>
 
               {errorNote}
 

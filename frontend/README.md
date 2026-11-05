@@ -3,6 +3,11 @@
     npm install
     npm run dev        # http://localhost:5173
 
+## Netlify price function
+Production price requests are handled by `netlify/functions/prices.mjs`, so the data.gov.in key stays on the server. In Netlify, add `DATA_GOV_IN_API_KEY` and `AGMARKNET_RESOURCE_ID` as environment variables with the **Functions** scope, then deploy the site again. `YARN_PRICES_URL` and `YARN_PRICES_API_KEY` are optional if a yarn provider is configured.
+
+For temporary browser-side testing only, setting `VITE_DATA_GOV_IN_API_KEY` and `VITE_AGMARKNET_RESOURCE_ID` makes the price page call data.gov.in directly. Vite embeds `VITE_` values in the public JavaScript bundle, so remove these variables after testing and redeploy to restore the server-side function path.
+
 ## Pages
 - `/`                      Home (search, 5 services, how it works, hiring banner)
 - `/about`, `/contact`

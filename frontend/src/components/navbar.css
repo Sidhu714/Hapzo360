@@ -30,9 +30,41 @@
 
 /* Brand */
 
+.logo-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.navbar-brand {
+  gap: 5px;
+}
+
+.logo-wordmark-image {
+  display: block;
+  width: auto;
+  height: 0.62em;
+  object-fit: contain;
+}
+
+.logo-wordmark-image--light {
+  filter: brightness(0) invert(1);
+}
+
+.logo-360 {
+  color: #528850;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
+.logo-360--light {
+  color: #fff;
+}
+
 .navbar--home .navbar-brand {
   flex-shrink: 0;
-  gap: 10px;
+  gap: 5px;
 
   text-decoration: none;
 }

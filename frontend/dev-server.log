@@ -1,0 +1,352 @@
+
+> hapzo@0.1.0 dev
+> vite --host 0.0.0.0
+
+
+  VITE v8.3.4  ready in 11224 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.31.91:5173/  Wi-Fi
+  ➜  press h + enter to show help
+1:50:45 pm [vite] (client) [console.warn] W1101 08:20:45.328000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+1:50:45 pm [vite] (client) [console.warn] W1101 08:20:45.460999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+1:50:45 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+1:50:45 pm [vite] (client) [console.warn] W1101 08:20:45.800000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+1:50:45 pm [vite] (client) [console.warn] W1101 08:20:45.864999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+2:30:50 pm [vite] (client) [console.warn] W1101 09:00:50.807000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:30:50 pm [vite] (client) [console.warn] W1101 09:00:50.856000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:30:50 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:30:50 pm [vite] (client) [console.warn] W1101 09:00:50.929999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+2:30:50 pm [vite] (client) [console.warn] W1101 09:00:50.983000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+10:47:51 am [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+10:48:09 am [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+10:49:57 am [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+10:50:07 am [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+10:54:58 am [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+10:55:00 am [vite] (client) [console.error] The final argument passed to useEffect changed size between renders. The order and size of this array must remain constant.
+
+Previous: [Community, Textile, Community, Textile]
+Incoming: [Textile, Textile]
+11:01:47 am [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+11:04:54 am [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+11:05:01 am [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+11:07:25 am [vite] (client) hmr update /src/App.jsx, /src/index.css
+11:07:25 am [vite] (client) Pre-transform error: Failed to resolve import "./pages/TermsAndConditions" from "src/App.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/Projects/hapzo/frontend/src/App.jsx:8:31
+  6  |  import About from "./pages/About";
+  7  |  import Contact from "./pages/Contact";
+  8  |  import TermsAndConditions from "./pages/TermsAndConditions";
+     |                                  ^
+  9  |  import Services from "./pages/Services";
+  10 |  import ServiceView from "./pages/ServiceView";
+11:07:25 am [vite] Internal server error: Failed to resolve import "./pages/TermsAndConditions" from "src/App.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/Projects/hapzo/frontend/src/App.jsx:8:31
+  6  |  import About from "./pages/About";
+  7  |  import Contact from "./pages/Contact";
+  8  |  import TermsAndConditions from "./pages/TermsAndConditions";
+     |                                  ^
+  9  |  import Services from "./pages/Services";
+  10 |  import ServiceView from "./pages/ServiceView";
+      at TransformPluginContext._formatLog (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:8766:39)
+      at TransformPluginContext.error (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:8763:14)
+      at normalizeUrl (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:26632:18)
+      at async file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:26702:30
+      at async Promise.all (index 7)
+      at async TransformPluginContext.transform (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:26668:4)
+      at async EnvironmentPluginContainer.transform (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:8545:14)
+      at async loadAndTransform (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:20184:26)
+11:07:25 am [vite] (client) [console.error] [vite] Failed to reload /src/App.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+11:07:36 am [vite] (client) page reload src/pages/TermsAndConditions.jsx
+11:07:44 am [vite] (client) hmr update /src/index.css, /src/components/Footer.jsx
+11:07:50 am [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+11:07:57 am [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+11:21:24 am [vite] (client) hmr update /src/index.css, /src/features/happenings/EventCard.jsx
+11:21:57 am [vite] (client) hmr update /src/index.css, /src/features/happenings/EventCard.jsx
+11:52:01 am [vite] (client) hmr update /src/index.css, /src/features/happenings/EventCard.jsx
+11:52:53 am [vite] (client) hmr update /src/index.css, /src/features/happenings/EventCard.jsx
+12:19:00 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:19:09 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/EventCard.jsx
+12:19:37 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:19:37 pm [vite] Internal server error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mExpected `from` but found `const`
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/features/happenings/HappeningsPage.jsx:10:1 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m10 │[0m const[38;5;249m [0m[38;5;249mA[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m_[0m[38;5;249mU[0m[38;5;249mR[0m[38;5;249mL[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m.[0m[38;5;249mm[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249m.[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mv[0m[38;5;249m.[0m[38;5;249mV[0m[38;5;249mI[0m[38;5;249mT[0m[38;5;249mE[0m[38;5;249m_[0m[38;5;249mE[0m[38;5;249mV[0m[38;5;249mE[0m[38;5;249mN[0m[38;5;249mT[0m[38;5;249mS[0m[38;5;249m_[0m[38;5;249mA[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m_[0m[38;5;249mU[0m[38;5;249mR[0m[38;5;249mL[0m[38;5;249m [0m[38;5;249m|[0m[38;5;249m|[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m'[0m[38;5;249m;[0m
+ [38;5;240m   │[0m ──┬──  
+ [38;5;240m   │[0m   ╰──── `from` expected
+[38;5;246m────╯[0m
+
+  Plugin: vite:oxc
+  File: D:/Projects/hapzo/frontend/src/features/happenings/HappeningsPage.jsx
+      at transformWithOxc (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:7581:19)
+      at TransformPluginContext.transform (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:7653:26)
+      at EnvironmentPluginContainer.transform (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:8545:51)
+      at async loadAndTransform (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:20184:26)
+      at async viteTransformMiddleware (file:///D:/Projects/hapzo/frontend/node_modules/vite/dist/node/chunks/node.js:20404:20)
+12:19:37 pm [vite] (client) [console.error] [vite] Failed to reload /src/features/happenings/HappeningsPage.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+12:19:39 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:19:40 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:19:41 pm [vite] (client) [Unhandled error] TypeError: Cannot read properties of undefined (reading 'category')
+ > AddEventModal src/features/happenings/EventCard.jsx:142:34
+    140 |      onRemoveImage,
+    141 |  }) {
+    142 |      const selectedCategory = form.category || categories[0];
+        |                                    ^
+    143 |      const selectedSector = form.sector || sectors[0];
+    144 |      const description = form.description || '';
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+12:19:41 pm [vite] (client) [console.warn] An error occurred in the <AddEventModal> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+12:19:41 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:19:43 pm [vite] (client) [Unhandled error] TypeError: Cannot read properties of undefined (reading 'category')
+ > AddEventModal src/features/happenings/EventCard.jsx:142:34
+    140 |      onRemoveImage,
+    141 |  }) {
+    142 |      const selectedCategory = form.category || categories[0];
+        |                                    ^
+    143 |      const selectedSector = form.sector || sectors[0];
+    144 |      const description = form.description || '';
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+12:19:43 pm [vite] (client) [console.warn] An error occurred in the <AddEventModal> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+12:19:44 pm [vite] (client) [Unhandled error] TypeError: Cannot read properties of undefined (reading 'category')
+ > AddEventModal src/features/happenings/EventCard.jsx:142:34
+    140 |      onRemoveImage,
+    141 |  }) {
+    142 |      const selectedCategory = form.category || categories[0];
+        |                                    ^
+    143 |      const selectedSector = form.sector || sectors[0];
+    144 |      const description = form.description || '';
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+12:19:44 pm [vite] (client) [console.warn] An error occurred in the <AddEventModal> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+12:19:47 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:19:48 pm [vite] (client) [Unhandled error] TypeError: Cannot read properties of undefined (reading 'category')
+ > AddEventModal src/features/happenings/EventCard.jsx:142:34
+    140 |      onRemoveImage,
+    141 |  }) {
+    142 |      const selectedCategory = form.category || categories[0];
+        |                                    ^
+    143 |      const selectedSector = form.sector || sectors[0];
+    144 |      const description = form.description || '';
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+12:19:48 pm [vite] (client) [console.warn] An error occurred in the <AddEventModal> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+12:21:03 pm [vite] (client) [Unhandled error] TypeError: Cannot read properties of undefined (reading 'category')
+ > AddEventModal src/features/happenings/EventCard.jsx:142:34
+    140 |      onRemoveImage,
+    141 |  }) {
+    142 |      const selectedCategory = form.category || categories[0];
+        |                                    ^
+    143 |      const selectedSector = form.sector || sectors[0];
+    144 |      const description = form.description || '';
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+12:21:03 pm [vite] (client) [console.warn] An error occurred in the <AddEventModal> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+12:21:16 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/EventCard.jsx
+12:21:28 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+12:21:29 pm [vite] (client) [Unhandled error] TypeError: Cannot read properties of undefined (reading 'category')
+ > AddEventModal src/features/happenings/EventCard.jsx:142:34
+    140 |        people = people.filter((p) => p.x < w + 30);
+    141 |  
+    142 |        rings.forEach((r) => { r.t += dt; });
+        |                                    ^
+    143 |        badges.forEach((b) => { b.t += dt; });
+    144 |        rings = rings.filter((r) => r.t < 1.6);
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:18094:34
+
+12:21:29 pm [vite] (client) [console.warn] An error occurred in the <AddEventModal> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+12:21:53 pm [vite] (client) [console.warn] W1102 06:51:53.537999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:21:53 pm [vite] (client) [console.warn] W1102 06:51:53.606000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:21:53 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:21:53 pm [vite] (client) [console.warn] W1102 06:51:53.883000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:21:53 pm [vite] (client) [console.warn] W1102 06:51:53.935000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:23:16 pm [vite] (client) [console.warn] W1102 06:53:16.497999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:23:16 pm [vite] (client) [console.warn] W1102 06:53:16.556999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:23:16 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:23:16 pm [vite] (client) [console.warn] W1102 06:53:16.808999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:23:16 pm [vite] (client) [console.warn] W1102 06:53:16.852999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:24:44 pm [vite] (client) [console.warn] W1102 06:54:44.692000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:24:44 pm [vite] (client) [console.warn] W1102 06:54:44.747000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:24:44 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:24:44 pm [vite] (client) [console.warn] W1102 06:54:44.863000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:24:44 pm [vite] (client) [console.warn] W1102 06:54:44.908999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:25:12 pm [vite] (client) [console.warn] W1102 06:55:12.462000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:25:12 pm [vite] (client) [console.warn] W1102 06:55:12.523000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:25:12 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:25:12 pm [vite] (client) [console.warn] W1102 06:55:12.668999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:25:12 pm [vite] (client) [console.warn] W1102 06:55:12.705999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:26:50 pm [vite] (client) [console.warn] W1102 06:56:50.460000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:26:50 pm [vite] (client) [console.warn] W1102 06:56:50.523000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:26:50 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:26:50 pm [vite] (client) [console.warn] W1102 06:56:50.654000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:26:50 pm [vite] (client) [console.warn] W1102 06:56:50.687000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:27:37 pm [vite] (client) [console.warn] W1102 06:57:37.691000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:27:37 pm [vite] (client) [console.warn] W1102 06:57:37.744999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:27:37 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:27:37 pm [vite] (client) [console.warn] W1102 06:57:37.910000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:27:37 pm [vite] (client) [console.warn] W1102 06:57:37.947000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:33:55 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:33:58 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:34:52 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:35:14 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:35:18 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:37:15 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:37:18 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:37:42 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:37:46 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:37:56 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:38:19 pm [vite] (client) [console.warn] W1102 07:08:19.217999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:38:19 pm [vite] (client) [console.warn] W1102 07:08:19.286000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:38:19 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:38:19 pm [vite] (client) [console.warn] W1102 07:08:19.524000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:38:19 pm [vite] (client) [console.warn] W1102 07:08:19.560000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:38:54 pm [vite] (client) [console.warn] W1102 07:08:54.768000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:38:54 pm [vite] (client) [console.warn] W1102 07:08:54.825999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:38:54 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:38:54 pm [vite] (client) [console.warn] W1102 07:08:54.953999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:38:54 pm [vite] (client) [console.warn] W1102 07:08:54.988000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:41:07 pm [vite] (client) [console.warn] W1102 07:11:07.974000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:41:08 pm [vite] (client) [console.warn] W1102 07:11:08.163000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:41:08 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:41:08 pm [vite] (client) [console.warn] W1102 07:11:08.567000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:41:08 pm [vite] (client) [console.warn] W1102 07:11:08.673999 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:45:22 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+12:45:50 pm [vite] (client) [console.warn] W1102 07:15:50.831000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+12:45:50 pm [vite] (client) [console.warn] W1102 07:15:50.936000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+12:45:51 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+12:45:51 pm [vite] (client) [console.warn] W1102 07:15:51.252000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+12:45:51 pm [vite] (client) [console.warn] W1102 07:15:51.300000 2191552 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+2:27:56 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+2:28:06 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+2:28:18 pm [vite] (client) [console.warn] W1102 08:58:18.252000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:28:18 pm [vite] (client) [console.warn] W1102 08:58:18.363000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:28:28 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:29:27 pm [vite] (client) [console.warn] W1102 08:59:27.860000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:29:27 pm [vite] (client) [console.warn] W1102 08:59:27.910000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:29:35 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:29:54 pm [vite] (client) [console.warn] W1102 08:59:54.395000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:29:54 pm [vite] (client) [console.warn] W1102 08:59:54.456999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:30:03 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:34:16 pm [vite] (client) [console.warn] W1102 09:04:16.563000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:34:16 pm [vite] (client) [console.warn] W1102 09:04:16.672000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:34:27 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:35:34 pm [vite] (client) [console.warn] W1102 09:05:34.147000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:35:34 pm [vite] (client) [console.warn] W1102 09:05:34.208999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:35:42 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:36:57 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+2:37:03 pm [vite] (client) [console.warn] W1102 09:07:03.380999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:37:03 pm [vite] (client) [console.warn] W1102 09:07:03.484999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:37:10 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:39:30 pm [vite] (client) [console.warn] W1102 09:09:30.859000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:39:30 pm [vite] (client) [console.warn] W1102 09:09:30.967000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:41:11 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:43:16 pm [vite] (client) hmr update /src/pages/Home.jsx, /src/index.css
+2:43:26 pm [vite] (client) hmr update /src/index.css, /src/pages/home.css
+2:45:37 pm [vite] (client) hmr update /src/pages/Home.jsx, /src/index.css
+2:45:43 pm [vite] (client) hmr update /src/index.css, /src/pages/home.css
+2:46:25 pm [vite] (client) [console.warn] W1102 09:16:25.982000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:46:26 pm [vite] (client) [console.warn] W1102 09:16:26.080000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:48:11 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+2:48:16 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:48:29 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+2:48:52 pm [vite] (client) [console.warn] W1102 09:18:52.116999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:48:52 pm [vite] (client) [console.warn] W1102 09:18:52.204999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:48:54 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/HappeningsPage.jsx
+2:48:57 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:52:21 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+2:52:29 pm [vite] (client) [console.warn] W1102 09:22:29.588999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:52:29 pm [vite] (client) [console.warn] W1102 09:22:29.696000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:53:08 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+2:54:49 pm [vite] (client) [console.warn] W1102 09:24:49.536999 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+2:54:49 pm [vite] (client) [console.warn] W1102 09:24:49.636999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+2:56:32 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+3:14:32 pm [vite] (client) hmr update /src/pages/TermsAndConditions.jsx, /src/index.css
+3:14:49 pm [vite] (client) hmr update /src/features/openings/PostJobPage.jsx, /src/index.css
+3:14:57 pm [vite] (client) hmr update /src/index.css, /src/features/openings/ApplyModal.jsx
+3:15:02 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+3:15:07 pm [vite] (client) [console.warn] W1102 09:45:07.855000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+3:15:07 pm [vite] (client) [console.warn] W1102 09:45:07.956000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+3:15:14 pm [vite] (client) hmr update /src/index.css, /src/features/happenings/AddEventModal.jsx
+3:15:34 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+7:19:50 pm [vite] (client) [console.warn] W1102 13:49:50.956000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+7:19:51 pm [vite] (client) [console.warn] W1102 13:49:51.072999 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+7:20:37 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+7:21:11 pm [vite] (client) [console.warn] W1102 13:51:11.471000 2191552 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default.
+7:21:11 pm [vite] (client) [console.warn] W1102 13:51:11.588000 2191552 gl_context.cc:1135] OpenGL error checking is disabled
+7:21:50 pm [vite] (client) [console.error] INFO: Created TensorFlow Lite XNNPACK delegate for CPU.

@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import {
     ArrowUpRight,
     Camera,
@@ -13,9 +15,16 @@ import {
 // Move your existing `suggestionBank` and `fallbackSuggestions` constants into
 // ./eventSuggestions.js and export them (see the note that came with this file).
 import { suggestionBank, fallbackSuggestions } from './eventSuggestions';
+import SearchSelect from '../openings/SearchSelect';
 
 const categories = ['Business', 'Community', 'Workshops', 'Webinar', 'Conference', 'Expo'];
 const sectors = ['Textile', 'Education', 'Engineering', 'Technology'];
+const sectorSpecialties = {
+    Textile: ['Spinning', 'Weaving', 'Knitting', 'Dyeing', 'Printing', 'Garment manufacturing', 'Embroidery', 'Textile trading'],
+    Education: ['School education', 'Higher education', 'Coaching', 'Vocational training', 'EdTech', 'Research'],
+    Engineering: ['Civil', 'Mechanical', 'Electrical', 'Electronics', 'Automotive', 'Manufacturing', 'Construction'],
+    Technology: ['Software', 'AI and data', 'Cybersecurity', 'Cloud', 'Hardware', 'IT services', 'Product development'],
+};
 const faceSteps = ['Look straight at the camera', 'Turn your head to your left', 'Turn your head to your right'];
 const DESCRIPTION_MAX = 1200;
 
@@ -45,7 +54,7 @@ function Modal({ closing, onBackdrop, labelledBy, children }) {
     const entered = useEntered();
     const show = entered && !closing;
 
-    return (
+    return createPortal((
         <div
             onMouseDown={(event) => {
                 if (event.target === event.currentTarget) onBackdrop?.();
@@ -61,7 +70,7 @@ function Modal({ closing, onBackdrop, labelledBy, children }) {
                 {children}
             </section>
         </div>
-    );
+    ), document.body);
 }
 
 function Panel({ icon: Icon, title, badge, children }) {
@@ -106,6 +115,7 @@ export default function AddEventModal({
     onClose,
     onBackdrop,
     form,
+    minDate,
     onFieldChange,
     onSubmit,
     formError,
@@ -121,7 +131,9 @@ export default function AddEventModal({
     faceState,
     faceStep,
     faceMessage,
-    capturedSnapshots = [],
+    faceSecondsLeft = 30,
+    clip,
+    onRetake,
     videoRef,
     startFaceCheck,
     stopCamera,
@@ -130,20 +142,17 @@ export default function AddEventModal({
     chooseImage,
     onRemoveImage,
 }) {
-    const selectedCategory = categories.includes(form.category) ? form.category : categories[0];
-    const selectedSector = sectors.includes(form.sector) ? form.sector : sectors[0];
+    const selectedCategory = form.category || categories[0];
+    const selectedSector = form.sector || sectors[0];
     const description = form.description || '';
 
-    // The selects display a default, so write that default into the form too.
+    // The sector picker displays a default, so write that default into the form too.
     // Otherwise `sector` is never submitted unless the user changes it.
     useEffect(() => {
-        if (form.category !== selectedCategory) {
-            onFieldChange({ target: { name: 'category', value: selectedCategory } });
-        }
         if (form.sector !== selectedSector) {
             onFieldChange({ target: { name: 'sector', value: selectedSector } });
         }
-    }, [form.category, form.sector, selectedCategory, selectedSector]);
+    }, [form.sector, selectedSector]);
 
     const currentSuggestions = useMemo(
         () => suggestionBank[`${selectedCategory}-${selectedSector}`] || fallbackSuggestions,
@@ -220,23 +229,64 @@ export default function AddEventModal({
                                 type="date"
                                 value={form.date}
                                 onChange={onFieldChange}
+                                inputMode="none"
                                 required
-                                min={new Date().toLocaleDateString('en-CA')}
+                                min={minDate}
+                                onKeyDown={(event) => {
+                                    if (/^[0-9]$/.test(event.key) || event.key === 'Backspace' || event.key === 'Delete') {
+                                        event.preventDefault();
+                                    }
+                                }}
+                                onPaste={(event) => event.preventDefault()}
+                                onDrop={(event) => event.preventDefault()}
                                 className={inputBase}
                             />
+                            <span className="block text-xs text-[#11192f]/50">Choose today or a future date from the calendar. Typing is disabled.</span>
                         </label>
 
                         <label className="block space-y-2">
                             <span className="text-sm font-bold">
                                 Time <span className="font-normal text-[#11192f]/45">(optional)</span>
                             </span>
-                            <input
-                                name="time"
-                                type="time"
-                                value={form.time}
-                                onChange={onFieldChange}
-                                className={inputBase}
-                            />
+                            <div className="grid grid-cols-[1fr_auto_1fr_1.2fr] items-center gap-2">
+                                <input
+                                    name="timeHour"
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={form.timeHour || ''}
+                                    onChange={onFieldChange}
+                                    placeholder="hh"
+                                    aria-label="Hour, 1 to 12"
+                                    maxLength={2}
+                                    className={`${inputBase} text-center`}
+                                />
+                                <span className="font-bold text-[#11192f]/50">:</span>
+                                <input
+                                    name="timeMinute"
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={form.timeMinute || ''}
+                                    onChange={onFieldChange}
+                                    placeholder="mm"
+                                    aria-label="Minutes, 00 to 59"
+                                    maxLength={2}
+                                    className={`${inputBase} text-center`}
+                                />
+                                <div className="relative">
+                                    <select
+                                        name="timePeriod"
+                                        value={form.timePeriod || 'AM'}
+                                        onChange={onFieldChange}
+                                        aria-label="AM or PM"
+                                        className={`${inputBase} appearance-none pr-9 font-semibold`}
+                                    >
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#11192f]/50" />
+                                </div>
+                            </div>
+                            <span className="block text-xs text-[#11192f]/50">Enter a 12-hour time and select AM or PM.</span>
                         </label>
                     </div>
 
@@ -253,10 +303,66 @@ export default function AddEventModal({
                         />
                     </label>
 
+                    <label className="block space-y-2">
+                        <span className="text-sm font-bold">
+                            Contact phone <span className="font-normal text-[#11192f]/45">(optional)</span>
+                        </span>
+                        <input
+                            name="contactPhone"
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel-national"
+                            value={form.contactPhone || ''}
+                            onChange={onFieldChange}
+                            placeholder="10-digit phone number"
+                            maxLength={10}
+                            pattern="[0-9]{10}"
+                            className={inputBase}
+                        />
+                        <span className="block text-xs text-[#11192f]/50">Shown to people who open your event details.</span>
+                    </label>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <SelectField label="Category" name="category" value={selectedCategory} onChange={onFieldChange} options={categories} />
-                        <SelectField label="Sector" name="sector" value={selectedSector} onChange={onFieldChange} options={sectors} />
+                        <SearchSelect
+                            id="event-category"
+                            label="Category"
+                            options={categories}
+                            selected={selectedCategory ? [selectedCategory] : []}
+                            onSelect={(category) => onFieldChange({ target: { name: 'category', value: category } })}
+                            placeholder="Search or add a category"
+                            allowCustom
+                            customLabel={(category) => `+ Add "${category}" as a new category`}
+                            helperText="Search the list or type a new category and add it."
+                        />
+                        <SearchSelect
+                            id="event-sector"
+                            label="Sector"
+                            options={sectors}
+                            selected={selectedSector ? [selectedSector] : []}
+                            onSelect={(sector) => {
+                                if (sector !== form.sector) {
+                                    onFieldChange({ target: { name: 'specialty', value: '' } });
+                                }
+                                onFieldChange({ target: { name: 'sector', value: sector } });
+                            }}
+                            placeholder="Search or add a sector"
+                            allowCustom
+                            customLabel={(sector) => `+ Add "${sector}" as a new sector`}
+                            helperText="Search the list or type a new sector and add it."
+                        />
                     </div>
+
+                    <SearchSelect
+                        id="event-specialty"
+                        label={`${selectedSector} specialty or activity`}
+                        options={sectorSpecialties[selectedSector] || []}
+                        selected={form.specialty ? [form.specialty] : []}
+                        onSelect={(specialty) => onFieldChange({ target: { name: 'specialty', value: specialty } })}
+                        placeholder={`Search or add a ${selectedSector.toLowerCase()} activity`}
+                        allowCustom
+                        customLabel={(specialty) => `+ Add "${specialty}" as a new activity`}
+                        helperText={`Choose an activity within ${selectedSector}, or type and add your own.`}
+                    />
 
                     {/* Description + smart suggestions */}
                     <div className="space-y-3">
@@ -405,10 +511,10 @@ export default function AddEventModal({
                         )}
                     </Panel>
 
-                    {/* Camera verification */}
-                    <Panel icon={Camera} title="Live camera check">
+                    {/* Live video verification */}
+                    <Panel icon={Camera} title="Live video check">
                         <p className="mt-2 text-sm leading-6 text-[#11192f]/55">
-                            Follow the head-turn prompts to complete the demo check. This needs camera permission.
+                            Look straight, then turn left, then turn right, all within 30 seconds. This needs camera permission.
                         </p>
 
                         {faceState === 'scanning' || faceState === 'starting' ? (
@@ -421,6 +527,12 @@ export default function AddEventModal({
                                         playsInline
                                         className="aspect-video w-full -scale-x-100 object-cover"
                                     />
+                                    {faceState === 'scanning' && (
+                                        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white">
+                                            <span className="h-2 w-2 animate-pulse rounded-full bg-[#ff5577]" />
+                                            REC · {faceSecondsLeft}s
+                                        </span>
+                                    )}
                                     <div className="absolute inset-x-0 bottom-0 bg-[#11192f]/85 px-3 py-3 text-center text-sm font-bold text-white">
                                         {faceState === 'starting'
                                             ? 'Starting camera…'
@@ -443,7 +555,7 @@ export default function AddEventModal({
                                 </div>
 
                                 <p className="pb-3 text-center text-sm text-white/75">
-                                    {faceState === 'scanning' ? 'Hold this position briefly' : 'Preparing face check…'}
+                                    {faceState === 'scanning' ? 'Complete all 3 steps within 30 seconds' : 'Preparing face check…'}
                                 </p>
 
                                 <button
@@ -458,12 +570,31 @@ export default function AddEventModal({
                                 </button>
                             </div>
                         ) : faceState === 'verified' ? (
-                            <div className="mt-4 flex items-start gap-2 rounded-xl bg-[#56dfff] p-3.5 text-sm font-semibold text-[#365b72]">
-                                <ShieldCheck size={18} className="shrink-0" />
-                                <span>
-                                    {faceMessage}{' '}
-                                    {capturedSnapshots.length > 0 && `(${capturedSnapshots.length} snapshots captured)`}
-                                </span>
+                            <div className="mt-4 space-y-3">
+                                <div className="flex items-start gap-2 rounded-xl bg-[#56dfff] p-3.5 text-sm font-semibold text-[#365b72]">
+                                    <ShieldCheck size={18} className="shrink-0" />
+                                    <span>{faceMessage}</span>
+                                </div>
+
+                                {clip ? (
+                                    <video
+                                        src={clip.url}
+                                        controls
+                                        muted
+                                        playsInline
+                                        className="aspect-video w-full -scale-x-100 rounded-xl bg-black object-cover"
+                                    />
+                                ) : (
+                                    <p className="text-sm text-[#526783]">Saving your video…</p>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={onRetake}
+                                    className="rounded-full border border-[#11192f]/15 px-4 py-2 text-sm font-semibold text-[#11192f] transition hover:bg-[#f4f7fb] active:scale-95"
+                                >
+                                    Retake video
+                                </button>
                             </div>
                         ) : (
                             <>
@@ -473,7 +604,7 @@ export default function AddEventModal({
                                     className={`${btnPrimary} mt-4 px-5 py-3 text-sm`}
                                 >
                                     <Camera size={16} />
-                                    Start camera check
+                                    Start video check
                                 </button>
                                 {faceMessage && <p className="mt-3 text-sm text-red-700">{faceMessage}</p>}
                             </>
@@ -516,8 +647,26 @@ export default function AddEventModal({
 
                     <p className="flex items-start gap-2 text-xs leading-5 text-[#11192f]/50">
                         <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-                        Demo mode: event details and captured snapshots stay in this browser. They are not uploaded to a server by this component.
+                        Demo mode: event details and your verification video stay in this browser. They are not uploaded to a server by this component.
                     </p>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-[#11192f]/10 bg-white p-4 text-sm leading-6">
+                        <input
+                            name="termsAccepted"
+                            type="checkbox"
+                            checked={Boolean(form.termsAccepted)}
+                            onChange={onFieldChange}
+                            required
+                            className="mt-1 h-4 w-4 shrink-0 accent-[#315844]"
+                        />
+                        <span>
+                            I agree to the Hapzo360{' '}
+                            <Link to="/terms-and-conditions" target="_blank" rel="noreferrer" className="font-bold text-[#315844] underline underline-offset-2">
+                                Terms &amp; Conditions
+                            </Link>
+                            .
+                        </span>
+                    </label>
 
                     {formError && (
                         <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 
 import { CheckCircle2, Clock } from 'lucide-react';
@@ -25,6 +26,7 @@ export default function ApplyModal({ job, onClose }) {
   const [idToken, setIdToken] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [verified, setVerified] = useState(false);
   const [done, setDone] = useState(false);
   const [timer, setTimer] = useState(0); // 30s Countdown timer
@@ -110,6 +112,11 @@ export default function ApplyModal({ job, onClose }) {
   const submit = async (e) => {
     e.preventDefault();
 
+    if (!termsAccepted) {
+      setErr('Please agree to the Hapzo360 Terms & Conditions before submitting your application.');
+      return;
+    }
+
     if (!verified) {
       if (confirmation) verifyOtp();
       else setErr('Please verify your phone number first.');
@@ -188,6 +195,22 @@ export default function ApplyModal({ job, onClose }) {
             }
             disabled={!!confirmation || verified}
           />
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm leading-5 text-stone-600">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(event) => setTermsAccepted(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-800"
+            />
+            <span>
+              I agree to the Hapzo360{' '}
+              <Link to="/terms-and-conditions" target="_blank" rel="noreferrer" className="font-semibold text-emerald-800 underline underline-offset-2">
+                Terms &amp; Conditions
+              </Link>{' '}
+              for job applications.
+            </span>
+          </label>
 
           {!verified && (
             <>

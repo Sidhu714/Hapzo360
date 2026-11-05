@@ -5,7 +5,8 @@ import { Menu, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSwitcher from './LanguageSwitcher';
 
-import logo from '../assets/logo.png';
+import logo from '../assets/logo-main.png';
+import hapzoWordmark from '../assets/hapzo-wordmark.png';
 import './navbar.css';
 
 
@@ -32,7 +33,12 @@ export function Logo({ light = false }) {
           light ? 'text-white' : 'text-[#20372a]'
         }`}
       >
-        Hapzo<span className="logo-360">360</span>
+        <img
+          src={hapzoWordmark}
+          alt="Hapzo"
+          className={`logo-wordmark-image${light ? ' logo-wordmark-image--light' : ''}`}
+        />
+        <span className={`logo-360${light ? ' logo-360--light' : ''}`}>360</span>
       </span>
     </Link>
   );
@@ -46,6 +52,8 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
 
   const isHomePage = location.pathname === '/';
+  const isAboutOrContactPage =
+    location.pathname === '/about' || location.pathname === '/contact';
 
   const isTrendsPage =
     location.pathname.startsWith('/services/trends');
@@ -66,7 +74,7 @@ export default function Navbar() {
   const isExpiredJobsPage = location.pathname.startsWith('/company/expired-jobs');
 
   const isOpeningsTheme = isOpeningsPage || isPostJobPage || isExpiredJobsPage;
-  const useHomepageNavbar = isHomePage;
+  const useHomepageNavbar = isHomePage || isAboutOrContactPage;
 
   const isDarkPage =
     isTrendsPage || isPriceListPage || isTechnologyPage || isOpeningsTheme;

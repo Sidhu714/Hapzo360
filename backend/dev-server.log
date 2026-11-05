@@ -1,0 +1,10 @@
+Prices and trends proxy running at http://localhost:3001
+[prices] Yarn prices disabled; configure YARN_PRICES_URL to enable a licensed yarn feed.
+[happenings] background refresh chennai failed: meetup: Disallowed by robots.txt
+[happenings] warm-up chennai failed: meetup: Disallowed by robots.txt
+[happenings] background refresh coimbatore failed: meetup: Disallowed by robots.txt
+[happenings] warm-up coimbatore failed: meetup: Disallowed by robots.txt
+[happenings] background refresh madurai failed: meetup: Disallowed by robots.txt
+[happenings] warm-up madurai failed: meetup: Disallowed by robots.txt
+[happenings] background refresh coimbatore failed: meetup: Disallowed by robots.txt
+[happenings] background refresh coimbatore failed: meetup: Disallowed by robots.txt
