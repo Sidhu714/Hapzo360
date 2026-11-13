@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Globe, LogOut, Menu, UserRound, X } from 'lucide-react';
 
 import { useLanguage } from '../context/LanguageContext';
+import { usePeopleAuth } from '../context/PeopleAuthContext';
+import { useCompanyAuth } from '../context/CompanyAuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
 
 import logo from '../assets/logo-main.png';
@@ -38,7 +40,10 @@ export function Logo({ light = false }) {
           alt="Hapzo"
           className={`logo-wordmark-image${light ? ' logo-wordmark-image--light' : ''}`}
         />
-        <span className={`logo-360${light ? ' logo-360--light' : ''}`}>360</span>
+        <span className={`logo-360${light ? ' logo-360--light' : ''}`}>
+          <span>36</span>
+          <Globe className="logo-globe" aria-hidden="true" />
+        </span>
       </span>
     </Link>
   );
@@ -47,9 +52,12 @@ export function Logo({ light = false }) {
 
 export default function Navbar() {
   const { t } = useLanguage();
+  const { person, openPeopleAuth, signOutPeople } = usePeopleAuth();
+  const { company, signOutCompany } = useCompanyAuth();
   const location = useLocation();
 
   const [open, setOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const isHomePage = location.pathname === '/';
   const isAboutOrContactPage =
@@ -80,11 +88,12 @@ export default function Navbar() {
     isTrendsPage || isPriceListPage || isTechnologyPage || isOpeningsTheme;
 
   const showPostJob =
-    location.pathname === '/services/openings';
+    location.pathname === '/services/openings' && !person;
 
 
   useEffect(() => {
     setOpen(false);
+    setAccountOpen(false);
   }, [location.pathname]);
 
 
@@ -203,6 +212,25 @@ export default function Navbar() {
             }
           >
             <LanguageSwitcher dark={isDarkPage} />
+          </div>
+
+          <div className="relative">
+            <button type="button" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen} aria-label="Account options" className={`inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition ${isDarkPage ? 'text-white hover:bg-white/10' : 'text-[#315844] hover:bg-[#eaf1df]'}`}>
+              <UserRound size={17} aria-hidden="true" /><span className="hidden sm:inline">{person ? person.name.split(' ')[0] : company ? company.companyName.split(' ')[0] : 'Account'}</span>
+            </button>
+            {accountOpen && (
+              <div className="absolute right-0 top-full z-50 mt-3 w-64 rounded-2xl border border-stone-200 bg-white p-2 text-[#20372a] shadow-2xl">
+                <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-stone-500">Your account</p>
+                {!person && !company && (
+                  <>
+                    <button type="button" onClick={() => { openPeopleAuth('signin'); setAccountOpen(false); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-stone-100"><UserRound size={15} /> Sign in</button>
+                    <button type="button" onClick={() => { openPeopleAuth('signup'); setAccountOpen(false); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-stone-100"><UserRound size={15} /> Sign up</button>
+                  </>
+                )}
+                {person && <button type="button" onClick={() => { signOutPeople(); setAccountOpen(false); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 transition hover:bg-red-50 hover:text-red-800"><LogOut size={15} /> Sign out</button>}
+                {company && <button type="button" onClick={() => { signOutCompany(); setAccountOpen(false); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 transition hover:bg-red-50 hover:text-red-800"><LogOut size={15} /> Sign out of Company</button>}
+              </div>
+            )}
           </div>
 
           {showPostJob && (

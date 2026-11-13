@@ -66,6 +66,22 @@ export async function getCompanyByEmail(email) {
   return found ? { ...found } : null;
 }
 
+export async function saveCompanyProfile(company) {
+  await delay(150);
+  const email = normalizeEmail(company.email);
+  if (!email || !getDemoAccounts().some((account) => account.email === email)) {
+    throw new Error('Sign in or create a company account before saving its profile.');
+  }
+  const existing = findCompany(email);
+  const saved = existing
+    ? { ...existing, ...company, email }
+    : { id: uid(), ...company, email, jobsPosted: 0, createdAt: now() };
+  write('companies', existing
+    ? companies().map((item) => item.id === existing.id ? saved : item)
+    : [...companies(), saved]);
+  return saved;
+}
+
 export async function getPostingFee(email) {
   await delay(150);
   return (findCompany(email)?.jobsPosted || 0) === 0 ? PRICING.firstJob : PRICING.additionalJob;
@@ -151,13 +167,13 @@ export async function processJobReactivationPayment() {
 }
 
 // POST /applications
-export async function submitApplication({ jobId, jobTitle, name, phone }) {
+export async function submitApplication({ jobId, jobTitle, name, phone, personId }) {
   await delay();
   const job = jobs().find((item) => item.id === jobId);
   if (!job || isJobExpired(job)) {
     throw new Error('This job is no longer accepting applications.');
   }
-  write('applications', [...read('applications', []), { id: uid(), jobId, jobTitle, name, phone, createdAt: now() }]);
+  write('applications', [...read('applications', []), { id: uid(), jobId, jobTitle, personId, name, phone, createdAt: now() }]);
 }
 
 const getDemoAccounts = () => read('demoCompanyAccounts', []);

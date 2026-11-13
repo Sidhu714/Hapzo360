@@ -33,7 +33,7 @@ export default function JobDetail({ job, onClose, onApply }) {
       <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-700">{v.description}</p>
       <h4 className="mt-5 font-bold text-stone-900">{t('openings.requirements')}</h4>
       <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-700">{v.requirements}</p>
-      <button className="btn-primary mt-6 w-full sm:w-auto" onClick={() => onApply(job)}>{t('openings.apply')}</button>
+      {onApply && <button className="btn-primary mt-6 w-full sm:w-auto" onClick={() => onApply(job)}>{t('openings.apply')}</button>}
     </Modal>
   );
 }

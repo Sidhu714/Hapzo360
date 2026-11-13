@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, Check, CheckCircle2,
   ChevronDown, CreditCard, Eye, EyeOff, Mail, Plus, Share2, ShieldCheck, Sparkles, X,
@@ -7,9 +7,10 @@ import {
 
 import { DEFAULT_JOB_EXPIRY_DAYS, PRICING } from '../../config';
 import { useLanguage } from '../../context/LanguageContext';
+import { useCompanyAuth } from '../../context/CompanyAuthContext';
 import Field from '../../components/Field';
 import { STATES, DISTRICTS } from '../../data/indiaLocations';
-import * as api from './openingsApi';
+import * as api from './openingsApiRemote';
 import SearchSelect from './SearchSelect';
 import HiringPipeline from './HiringPipeline';
 import './post-job-theme.css';
@@ -199,8 +200,13 @@ const validatePositions = (positions) => {
 
 export default function PostJobPage() {
   const { t, lang } = useLanguage();
+  const { company, openCompanyAuth } = useCompanyAuth();
+  const [searchParams] = useSearchParams();
+  const requestedAuthMode = searchParams.get('auth');
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(2);
+  const [companyAuthMode, setCompanyAuthMode] = useState(() => requestedAuthMode === 'signin' ? 'signin' : 'signup');
+  const [companyAccountCreated, setCompanyAccountCreated] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -222,6 +228,18 @@ export default function PostJobPage() {
 
   const errRef = useRef(null);
   const publishedCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!company?.companyName) {
+      setStep(0);
+      return;
+    }
+    setEmail(company.email);
+    setCo(company);
+    setKnownCompany(true);
+    setStep(2);
+    api.getPostingFee(company.email).then(setFee);
+  }, [company?.email, company?.companyName]);
 
   useEffect(() => {
     if (err) {
@@ -361,7 +379,10 @@ export default function PostJobPage() {
           ? await api.companyAccountExists(normalizedEmail)
           : Boolean(existingCompany);
 
-      if (existingCompany || accountExists) {
+      if (companyAuthMode === 'signin') {
+        if (!accountExists) {
+          throw new Error('No company account was found for this email. Choose Sign up to create one.');
+        }
         if (typeof api.loginCompanyAccount !== 'function') {
           throw new Error(
             'Account login is not configured in openingsApi.js.',
@@ -401,24 +422,35 @@ export default function PostJobPage() {
           goto(1);
         }
       } else {
-        if (typeof api.registerCompanyAccount !== 'function') {
-          throw new Error(
-            'Account registration is not configured in openingsApi.js.',
-          );
+        if (accountExists) {
+          throw new Error('A company account already exists for this email. Choose Sign in instead.');
         }
-
-        await api.registerCompanyAccount({
-          email: normalizedEmail,
-          password,
-        });
-
         setEmail(normalizedEmail);
-        setKnownCompany(false);
-        setCo({ ...EMPTY_CO, email: normalizedEmail });
-        goto(1);
+        setCompanyAccountCreated(false);
+        if (existingCompany) {
+          setKnownCompany(false);
+          setCo({
+            companyName: existingCompany.companyName || '',
+            contactPerson: existingCompany.contactPerson || '',
+            contactDesignation: existingCompany.contactDesignation || '',
+            additionalContactPerson: existingCompany.additionalContactPerson || '',
+            additionalContactDesignation: existingCompany.additionalContactDesignation || '',
+            phone: existingCompany.phone || '',
+            email: existingCompany.email || normalizedEmail,
+            location: existingCompany.location || '',
+            industry: existingCompany.industry || '',
+            website: existingCompany.website || '',
+          });
+          setFee(await api.getPostingFee(normalizedEmail));
+          goto(1);
+        } else {
+          setKnownCompany(false);
+          setCo({ ...EMPTY_CO, email: normalizedEmail });
+          goto(1);
+        }
       }
 
-      setPassword('');
+      if (companyAuthMode === 'signin') setPassword('');
     } catch (error) {
       setErr(error.message || t('post.error'));
     } finally {
@@ -426,7 +458,7 @@ export default function PostJobPage() {
     }
   };
 
-  const toJob = (event) => {
+  const toJob = async (event) => {
     event.preventDefault();
     setErr('');
 
@@ -457,13 +489,22 @@ export default function PostJobPage() {
       return;
     }
 
-    setCo((previous) => ({
-      ...previous,
-      email: normalizeEmail(email),
-    }));
-
-    setFee(PRICING.firstJob);
-    goto(2);
+    setBusy(true);
+    try {
+      if (companyAuthMode === 'signup' && !companyAccountCreated) {
+        await api.registerCompanyAccount({ email: normalizeEmail(email), password });
+        setCompanyAccountCreated(true);
+        setPassword('');
+      }
+      const savedCompany = await api.saveCompanyProfile({ ...co, email: normalizeEmail(email) });
+      setCo(savedCompany);
+      setFee(await api.getPostingFee(normalizeEmail(email)));
+      goto(2);
+    } catch (error) {
+      setErr(error.message || 'Could not create the company account. Please try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const submitPositions = async (event) => {
@@ -655,18 +696,16 @@ export default function PostJobPage() {
             <CheckCircle2 size={34} />
           </span>
 
-          <p className="post-eyebrow">
-            {t('post.publishedLabel')}
-          </p>
+          <p className="post-eyebrow">Submitted for review</p>
 
-          <h1>{t('post.published')}</h1>
+          <h1>Your job is awaiting approval</h1>
 
           <p>
-            {t('post.liveCopy')}{' '}
+            We received{' '}
             <strong>
               {jobs.map((item) => item.title).join(', ')}
             </strong>
-            .
+            . It will appear in Openings after the administrator approves it. The three-day listing starts then.
           </p>
 
           <div className="post-actions">
@@ -681,15 +720,6 @@ export default function PostJobPage() {
               Manage expired jobs
             </Link>
 
-            <a
-              href={whatsappShareUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-outline"
-            >
-              <Share2 size={16} /> Share on WhatsApp
-            </a>
-
             <button
               className="btn-outline"
               onClick={postAnother}
@@ -701,6 +731,23 @@ export default function PostJobPage() {
       </div>
       </div>
     );
+  }
+
+  if (!company?.companyName) {
+    return <div className="post-page">
+      <div aria-hidden="true" className="post-opening-backdrop"><div className="post-opening-grid" /></div>
+      <div className="post-shell relative z-10 py-20">
+        <div className="mx-auto max-w-xl rounded-[28px] border border-white/20 bg-white/95 p-8 text-center shadow-2xl sm:p-10">
+          <Building2 className="mx-auto mb-5 text-[#9a472d]" size={36} />
+          <h1 className="text-3xl font-extrabold text-[#25171c]">Post a job with your company account</h1>
+          <p className="mt-3 text-[#5f5355]">Register your company or sign in to continue. Registration starts with a demo WhatsApp verification.</p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <button type="button" onClick={() => openCompanyAuth('signup')} className="btn-primary">Register company</button>
+            <button type="button" onClick={() => openCompanyAuth('signin')} className="btn-outline">Company sign in</button>
+          </div>
+        </div>
+      </div>
+    </div>;
   }
 
   return (
@@ -839,22 +886,39 @@ export default function PostJobPage() {
                 </span>
 
                 <div>
-                  <h2>{t('post.welcome')}</h2>
+                  <h2>{companyAuthMode === 'signup' ? 'Create your company account' : 'Sign in to your company account'}</h2>
                   <p>
-                    Enter your work email and password to
-                    continue.
+                    {companyAuthMode === 'signup'
+                      ? 'Create your login first, then add your company profile.'
+                      : 'Use your company email and password to continue.'}
                   </p>
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 rounded-xl bg-[#f2f4ed] p-1" role="tablist" aria-label="Company account options">
+                {[
+                  ['signup', 'Sign up'],
+                  ['signin', 'Sign in'],
+                ].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="tab"
+                    aria-selected={companyAuthMode === mode}
+                    onClick={() => { setCompanyAuthMode(mode); setErr(''); setShowPassword(false); }}
+                    className={`rounded-lg px-3 py-2.5 text-sm font-bold transition ${companyAuthMode === mode ? 'bg-white text-[#315844] shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               <Field
-                label={t('post.email')}
+                label="Company email"
                 type="email"
                 required
                 value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
+                onChange={(event) => { setEmail(event.target.value); setCompanyAccountCreated(false); }}
                 placeholder={t('post.emailPlaceholder')}
               />
 
@@ -884,8 +948,9 @@ export default function PostJobPage() {
               <div className="post-inline-note">
                 <ShieldCheck size={17} />
                 <span>
-                  Use your company account credentials to
-                  continue.
+                  {companyAuthMode === 'signup'
+                    ? 'After creating your login, you’ll add your company name, industry, contact, and location.'
+                    : 'Sign in to load your saved company profile and continue posting.'}
                 </span>
               </div>
 
@@ -895,7 +960,7 @@ export default function PostJobPage() {
                 className="btn-primary post-submit"
                 disabled={busy}
               >
-                {busy ? t('post.checking') : t('post.continue')}{' '}
+                {busy ? t('post.checking') : companyAuthMode === 'signup' ? 'Create account and continue' : 'Sign in and continue'}{' '}
                 <ArrowRight size={17} />
               </button>
             </form>

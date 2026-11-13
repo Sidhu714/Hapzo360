@@ -1,7 +1,12 @@
 import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CalendarDays, MapPin, Search, Sparkles, Clock3, ArrowUpRight, Plus, X, Users, Ticket, Phone } from 'lucide-react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import AddEventModal from './AddEventModal';
+import { listCommunityEvents, listMyEventRegistrations, publishCommunityEvent, registerForCommunityEvent, uploadVerificationClip } from './eventsApi';
+import { usePeopleAuth } from '../../context/PeopleAuthContext';
+import { useCompanyAuth } from '../../context/CompanyAuthContext';
 import { DISTRICTS } from '../../data/indiaLocations';
 import API_BASE_URL from '../../config/api';
 import EventPulse from './EventCard';
@@ -10,7 +15,6 @@ import { createClipRecorder, canRecordVideo, saveClip } from './FaceClip';
 const API_URL = import.meta.env.VITE_EVENTS_API_URL || '';
 const ONLINE_EVENTS_API_URL = `${API_BASE_URL}/api/happenings/search`;
 const EVENT_CACHE_KEY = 'happening.events.cache.v1';
-const USER_EVENTS_KEY = 'happening.user-events.v1';
 const HAPPENING_DISTRICTS = DISTRICTS['Tamil Nadu'] || [];
 const categories = ['All events', 'Business', 'Community', 'Hackathon', 'Meetups', 'Workshops', 'Webinar', 'Conference', 'Expo'];
 const TIME_FILTERS = [
@@ -140,6 +144,7 @@ function matchesTimeFilter(event, filter) {
   return hour >= 21 || hour < 5;
 }
 const dayKey = date => date.toLocaleDateString('en-CA');
+const eventIdentity = event => String(event.id || event.url || `${event.title || event.name || 'event'}-${event.date || event.startDate || ''}`);
 function registrationCount(event) {
   if (Number.isFinite(Number(event.registeredCount))) return Math.min(20, Math.max(0, Number(event.registeredCount)));
   let hash = 0;
@@ -233,10 +238,10 @@ function Reveal({ delay = 0, className = '', children }) {
 function Modal({ closing, onBackdrop, labelledBy, className = '', children }) {
   const entered = useEntered();
   const show = entered && !closing;
-  return (
+  return createPortal((
     <div
       onMouseDown={event => { if (event.target === event.currentTarget) onBackdrop(); }}
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-[#0b1220]/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none sm:items-center sm:p-5 ${show ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-[100] flex items-end justify-center bg-[#0b1220]/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none sm:items-center sm:p-5 ${show ? 'opacity-100' : 'opacity-0'}`}
     >
       <section
         role="dialog"
@@ -247,7 +252,7 @@ function Modal({ closing, onBackdrop, labelledBy, className = '', children }) {
         {children}
       </section>
     </div>
-  );
+  ), document.body);
 }
 
 function Toast({ message }) {
@@ -266,7 +271,10 @@ function Toast({ message }) {
 function eventImageUrl(event) {
   const candidate = event?.image ?? event?.imageUrl ?? event?.image_url ?? event?.thumbnail ?? event?.thumbnailUrl ?? event?.thumbnail_url ?? event?.images;
   const firstUsable = value => {
-    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'string' && value.trim()) {
+      const src = value.trim();
+      return src.startsWith('/api/') ? `${API_BASE_URL}${src}` : src;
+    }
     if (Array.isArray(value)) return value.map(firstUsable).find(Boolean) || '';
     if (value && typeof value === 'object') {
       return firstUsable(value.url || value.contentUrl || value.thumbnailUrl || value.src || value.image);
@@ -345,7 +353,7 @@ const EventCard = memo(function EventCard({ event, index, onOpen }) {
             {event.category || 'Community'}
           </div>
           {event.createdByUser && (
-            <div className="absolute right-4 top-4 rounded-full bg-[#1f46c9] px-3 py-2 text-xs font-bold text-white">Community event</div>
+            <div className="absolute right-4 top-4 rounded-full bg-[#1f46c9] px-3 py-2 text-xs font-bold text-white">{event.createdByAdmin ? 'Hapzo360 event' : 'Community event'}</div>
           )}
           {event.scraped && (
             <div className="absolute right-4 top-4 rounded-full bg-[#f2b53d] px-3 py-2 text-xs font-bold text-[#0b1220]">{event.sourceName || 'Found online'}</div>
@@ -446,7 +454,14 @@ const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePe
 
 /* ---------- Main component ---------- */
 export default function Happening() {
-  const [events, setEvents] = useState(() => mergeEvents(readEvents(EVENT_CACHE_KEY), readEvents(USER_EVENTS_KEY)));
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { person, requestPeopleAuth } = usePeopleAuth();
+  const { company, requestCompanyAuth } = useCompanyAuth();
+  const [events, setEvents] = useState(() => readEvents(EVENT_CACHE_KEY));
+  const [communityEvents, setCommunityEvents] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const resumedAuthActionRef = useRef(null);
   const [onlineEvents, setOnlineEvents] = useState([]);
   const [loading, setLoading] = useState(() => readEvents(EVENT_CACHE_KEY).length === 0);
   const [onlineLoading, setOnlineLoading] = useState(true);
@@ -468,6 +483,7 @@ export default function Happening() {
   const [imageBusy, setImageBusy] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [toast, setToast] = useState('');
+  const [eventOwner, setEventOwner] = useState(person);
 
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -741,7 +757,7 @@ export default function Happening() {
       .then(response => { if (!response.ok) throw new Error('Events could not be loaded'); return response.json(); })
       .then(data => {
         const remote = Array.isArray(data) ? data : (data.events || []);
-        const next = mergeEvents(remote, readEvents(USER_EVENTS_KEY));
+        const next = mergeEvents(remote);
         setEvents(next); saveEvents(EVENT_CACHE_KEY, stripHeavy(next)); setLoadFailed(false);
       })
       .catch(error => { if (error.name !== 'AbortError') setLoadFailed(true); })
@@ -750,6 +766,23 @@ export default function Happening() {
     const timer = window.setInterval(load, 5 * 60 * 1000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => listCommunityEvents().then((items) => {
+      if (active) setCommunityEvents(items);
+    }).catch(() => { if (active) setLoadFailed(true); });
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    if (!person) { setRegistrations([]); return undefined; }
+    let active = true;
+    listMyEventRegistrations().then((items) => { if (active) setRegistrations(items); }).catch(() => {});
+    return () => { active = false; };
+  }, [person?.id]);
 
   // Online (crawled) events. The server ignores `date`, and day filtering is done
   // client-side in `filteredEvents`, so only the district triggers a request.
@@ -793,7 +826,7 @@ export default function Happening() {
     return () => controller.abort();
   }, [selectedEvent?.id, selectedEvent?.url]);
 
-  const allEvents = useMemo(() => mergeEvents(events, onlineEvents), [events, onlineEvents]);
+  const allEvents = useMemo(() => mergeEvents(events, communityEvents, onlineEvents), [events, communityEvents, onlineEvents]);
 
   const filteredEvents = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase();
@@ -807,6 +840,9 @@ export default function Happening() {
       return matchesCategory && text.includes(needle) && matchesTimeFilter(event, timeFilter);
     });
   }, [allEvents, category, deferredQuery, dayFilter, timeFilter]);
+  const selectedEventIsRegistered = Boolean(person && selectedEvent && registrations.some(
+    (entry) => entry.eventId === eventIdentity(selectedEvent),
+  ));
 
   /* ---------- Image upload ---------- */
   const chooseImage = async event => {
@@ -830,10 +866,18 @@ export default function Happening() {
   };
 
   /* ---------- Modals ---------- */
-  const openAdd = useCallback(() => {
+  const openAddForCompany = useCallback((authenticatedCompany) => {
+    setEventOwner({ id: authenticatedCompany.id, name: authenticatedCompany.companyName });
+    setMobile(authenticatedCompany.phone || '');
+    setOtpState('verified');
+    setOtpMessage('Contact number saved with your company profile.');
     setFormError(''); setAddClosing(false); setAddOpen(true);
     loadFaceLandmarker().catch(() => { }); // preload the model so the check starts fast
   }, []);
+  const openAdd = useCallback(() => {
+    if (person) return;
+    requestCompanyAuth(openAddForCompany, { type: 'addEvent' });
+  }, [person, requestCompanyAuth, openAddForCompany]);
   const closeAdd = useCallback(() => {
     stopCamera(); setFaceState('idle'); setFaceStep(0); setFaceMessage(''); setFaceSecondsLeft(FACE_CHECK_MS / 1000);
     setOtpState('idle'); setOtpSeconds(0); setOtp(''); setMobile(''); setOtpMessage(''); discardClip();
@@ -881,7 +925,7 @@ export default function Happening() {
     setForm(current => ({ ...current, [name]: nextValue }));
   };
 
-  const addEvent = event => {
+  const addEvent = async event => {
     event.preventDefault(); setFormError('');
     if (otpState !== 'verified') { setFormError('Verify your mobile number with the demo code first.'); return; }
     if (faceState !== 'verified' || !clip) { setFormError('Complete the live video check first.'); return; }
@@ -903,21 +947,60 @@ export default function Happening() {
     const newEvent = {
       id: `happening-${id}`, title: form.title.trim(), date: new Date(`${form.date}T${time24}:00+05:30`).toISOString(),
       time: displayTime, venue: form.venue.trim(), contactPhone: form.contactPhone, category: form.category, sector: form.sector, specialty: form.specialty, description: form.description.trim(), image: form.image,
-      registeredCount: Math.floor(Math.random() * 21), source: 'Community', createdByUser: true,
+      registeredCount: 0, source: 'Community', createdByUser: true, organizer: eventOwner?.name || '', organizerId: eventOwner?.id || '',
       hasVerificationClip: true
     };
 
-    const saved = saveEvents(USER_EVENTS_KEY, mergeEvents([newEvent], readEvents(USER_EVENTS_KEY)));
-    if (!saved) { setFormError('This device could not save the event. Free some browser storage and try again.'); return; }
-    // The video goes to IndexedDB (localStorage is far too small for it), keyed by the event id.
-    saveClip(newEvent.id, clip.blob).catch(() => { });
-
-    const next = mergeEvents([newEvent], events);
-    setEvents(next); saveEvents(EVENT_CACHE_KEY, stripHeavy(next));
+    let clipShared = true;
+    try {
+      const saved = await publishCommunityEvent(newEvent);
+      try { await uploadVerificationClip(saved.id, clip.blob); }
+      catch { clipShared = false; saveClip(saved.id, clip.blob).catch(() => { }); }
+      // Pending events appear in the public list only after administrator approval.
+    } catch (cause) { setFormError(cause.message || 'Could not publish the event.'); return; }
     setForm(EMPTY_FORM);
     closeAdd();
-    setToast('Event published and saved on this device.');
+    setToast(clipShared ? 'Event submitted for review. It will appear after approval.' : 'Event submitted for review. The clip upload failed; please contact support.');
   };
+
+  const registerForEvent = useCallback((event) => {
+    if (company) return;
+    const eventId = eventIdentity(event);
+    requestPeopleAuth({
+      purpose: 'eventRegistration',
+      action: { type: 'registerEvent', eventId, eventTitle: event.title || event.name },
+      onAuthenticated: async (authenticatedPerson) => {
+        if (registrations.some((entry) => entry.eventId === eventId)) {
+          setToast('You are already registered for this event.');
+          return;
+        }
+        try { await registerForCommunityEvent(eventId, event.title || event.name); }
+        catch (cause) { setToast(cause.message || 'Could not register for this event.'); return; }
+        const registration = { eventId, eventTitle: event.title || event.name, registeredAt: new Date().toISOString() };
+        setRegistrations((current) => [...current, registration]);
+        setSelectedEvent((current) => current && eventIdentity(current) === eventId ? { ...current, registeredCount: Math.min(20, registrationCount(current) + 1) } : current);
+        setCommunityEvents((current) => current.map((item) => eventIdentity(item) === eventId ? { ...item, registeredCount: registrationCount(item) + 1 } : item));
+        setToast('You are registered for this event.');
+      },
+    });
+  }, [company, requestPeopleAuth, registrations]);
+
+  useEffect(() => {
+    const action = location.state?.authAction;
+    if (!action) { resumedAuthActionRef.current = null; return; }
+    if (resumedAuthActionRef.current === action) return;
+    if (action.type === 'addEvent' && company?.companyName && !person) {
+      resumedAuthActionRef.current = action;
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      openAddForCompany(company);
+    }
+    if (action.type === 'registerEvent' && person && !company) {
+      resumedAuthActionRef.current = action;
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      const event = allEvents.find((item) => eventIdentity(item) === action.eventId) || { id: action.eventId, title: action.eventTitle };
+      registerForEvent(event);
+    }
+  }, [location.state, location.pathname, location.search, company, person, allEvents, navigate, openAddForCompany, registerForEvent]);
 
   const scrollToEvents = () => document.getElementById('events-list')?.scrollIntoView({ behavior: 'smooth' });
   const dayLabel = dayFilter ? formatDate(dayFilter) : '';
@@ -959,10 +1042,10 @@ export default function Happening() {
                   Explore what's on
                   <ArrowUpRight size={18} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </button>
-                <button onClick={openAdd} className="inline-flex items-center gap-2 rounded-full border border-[#0b1220]/20 bg-white px-6 py-3.5 font-bold text-[#0b1220] transition duration-200 hover:bg-[#dfe6f8] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] motion-reduce:transition-none">
+                {!person && <button onClick={openAdd} className="inline-flex items-center gap-2 rounded-full border border-[#0b1220]/20 bg-white px-6 py-3.5 font-bold text-[#0b1220] transition duration-200 hover:bg-[#dfe6f8] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] motion-reduce:transition-none">
                   <Plus size={17} />
                   Add an event
-                </button>
+                </button>}
               </div>
             </Reveal>
 
@@ -1117,10 +1200,10 @@ export default function Happening() {
                         Clear filters
                       </button>
                     )}
-                    <button onClick={openAdd} className={`${btnPrimary} px-6 py-3.5 text-sm`}>
+                    {!person && <button onClick={openAdd} className={`${btnPrimary} px-6 py-3.5 text-sm`}>
                       <Plus size={16} />
                       Add a community event
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </Reveal>
@@ -1132,7 +1215,7 @@ export default function Happening() {
       {toast && <Toast key={toast} message={toast} />}
 
       {/* Add event modal: fixed header, scrolling body, fixed footer */}
-      {addOpen && (
+      {addOpen && !person && (
         <AddEventModal
           closing={addClosing}
           onClose={closeAdd}
@@ -1290,19 +1373,31 @@ export default function Happening() {
                 )}
               </div>
 
-              {selectedEvent.scraped && selectedEvent.url && (
-                <a
-                  href={selectedEvent.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#1f46c9] underline decoration-[#1f46c9]/30 underline-offset-4 hover:decoration-[#1f46c9]"
-                >
-                  View original listing
-                  <ArrowUpRight size={15} />
-                </a>
+              {!selectedEvent.scraped && !company && (
+                <div className="mt-7 rounded-2xl border border-[#0b1220]/10 bg-white p-4">
+                  <button
+                    type="button"
+                    onClick={() => registerForEvent(selectedEvent)}
+                    disabled={selectedEventIsRegistered}
+                    className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm disabled:bg-[#dce6d4] disabled:text-[#315844]`}
+                  >
+                    {selectedEventIsRegistered ? 'You’re registered' : 'Register for this event'}
+                  </button>
+                  <p className="mt-2 text-center text-xs leading-5 text-[#0b1220]/50">Registration is saved to this browser for your Hapzo account.</p>
+                </div>
               )}
 
-              <button onClick={closeDetails} className={`${btnPrimary} mt-8 w-full px-6 py-4 text-sm`}>Done</button>
+              {selectedEvent.scraped ? (
+                selectedEvent.url && (
+                  <div className="mt-8">
+                    <a href={selectedEvent.url} target="_blank" rel="noopener noreferrer" className={`${btnPrimary} w-full px-4 py-4 text-sm`}>
+                      Explore <ArrowUpRight size={16} />
+                    </a>
+                  </div>
+                )
+              ) : (
+                <button onClick={closeDetails} className={`${btnPrimary} mt-8 w-full px-6 py-4 text-sm`}>Done</button>
+              )}
             </div>
           </div>
         </Modal>

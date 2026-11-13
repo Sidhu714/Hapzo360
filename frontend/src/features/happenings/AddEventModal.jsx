@@ -59,7 +59,7 @@ function Modal({ closing, onBackdrop, labelledBy, children }) {
             onMouseDown={(event) => {
                 if (event.target === event.currentTarget) onBackdrop?.();
             }}
-            className={`fixed inset-0 z-50 flex items-end justify-center bg-[#11192f]/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none sm:items-center sm:p-5 ${show ? 'opacity-100' : 'opacity-0'}`}
+            className={`fixed inset-0 z-[100] flex items-end justify-center bg-[#11192f]/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none sm:items-center sm:p-5 ${show ? 'opacity-100' : 'opacity-0'}`}
         >
             <section
                 role="dialog"

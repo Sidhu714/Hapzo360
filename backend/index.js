@@ -6,7 +6,7 @@
 // const PORT = process.env.PORT || 3001;
 
 // // Government agricultural mandi price API
-// const DATA_GOV_IN_API_KEY = process.env.DATA_GOV_IN_API_KEY;
+// const DATA_GOV_IN_API_KEY = process.env.DATA_GOV_IN_API_KEY; 
 // const AGMARKNET_RESOURCE_ID = process.env.AGMARKNET_RESOURCE_ID;
 
 // // NewsData.io trends API
@@ -893,6 +893,8 @@ import "dotenv/config";
 import cors from "cors";
 import dns from "node:dns";
 import happenings, { warmHappenings } from "./happenings.js";
+import { createDatabase, initializeDatabase } from "./db.js";
+import { platformRoutes, seedSuperAdmin, seedReadOnlySuperAdmin } from "./platform.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -921,11 +923,13 @@ const STATE = "Tamil Nadu";
 // CORS must come before any routes/routers so every response gets the headers
 app.use(
   cors({
-    origin: ["https://hapzo360.netlify.app", "http://localhost:5173"],
+    origin: ["https://hapzo360.netlify.app", "http://localhost:5173", "http://127.0.0.1:5173", process.env.FRONTEND_ORIGIN].filter(Boolean),
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+app.use(express.json({ limit: '8mb' }));
 
 // Happenings crawler (GET /api/happenings/search)
 app.use("/api/happenings", happenings);
@@ -946,8 +950,7 @@ const FEEDS = {
 };
 
 if (!NEWS_DATA_API_KEY) {
-  console.error("Missing NEWSDATA_API_KEY");
-  process.exit(1);
+  console.warn("[trends] NEWSDATA_API_KEY is missing; trend requests will be unavailable.");
 }
 
 // --------------------------------------------------
@@ -1489,8 +1492,25 @@ app.get("/api/prices", async (req, res) => {
   }
 });
 
+let editorialDb;
+
 app.get("/api/trends", async (req, res) => {
   const domain = String(req.query.domain || "all").toLowerCase();
+  if (domain !== 'all' && !FEEDS[domain]) return res.status(400).json({ error: 'Unknown domain' });
+  const [posts] = editorialDb ? await editorialDb.execute(
+    domain === 'all'
+      ? 'SELECT id, domain, title, description, image_url, published_at FROM editorial_posts ORDER BY published_at DESC LIMIT 100'
+      : 'SELECT id, domain, title, description, image_url, published_at FROM editorial_posts WHERE domain = ? ORDER BY published_at DESC LIMIT 100',
+    domain === 'all' ? [] : [domain]
+  ) : [[]];
+  const origin = `${req.get('x-forwarded-proto')?.split(',')[0]?.trim() === 'https' ? 'https' : req.protocol}://${req.get('host')}`;
+  const editorial = posts.map((post) => ({
+    id: post.id, domain: post.domain === 'all' ? 'manufacturing' : post.domain,
+    title: post.title, description: post.description,
+    link: `${origin}/api/editorial/${post.id}`,
+    image: post.image_url?.startsWith('/') ? `${origin}${post.image_url}` : post.image_url, source: 'Hapzo360',
+    publishedAt: new Date(`${String(post.published_at).replace(' ', 'T')}Z`).toISOString(),
+  }));
 
   try {
     let articles;
@@ -1506,7 +1526,7 @@ app.get("/api/trends", async (req, res) => {
         .filter((result) => result.status === "fulfilled")
         .map((result) => result.value.data);
 
-      if (lists.length === 0) {
+      if (lists.length === 0 && editorial.length === 0) {
         throw new Error("All trend feeds failed");
       }
 
@@ -1521,15 +1541,15 @@ app.get("/api/trends", async (req, res) => {
       return res.status(400).json({ error: "Unknown domain" });
     }
 
-    res.set("Cache-Control", "public, max-age=300");
+    res.set("Cache-Control", "no-store");
 
     res.json({
-      articles,
+      articles: [...editorial, ...articles],
       stale: false,
     });
   } catch (error) {
     console.error("[trends] Request failed:", error.message);
-
+    if (editorial.length) return res.json({ articles: editorial, stale: true });
     res.status(502).json({
       error: "Could not load trends",
     });
@@ -1540,8 +1560,40 @@ app.get("/api/trends", async (req, res) => {
 // Start
 // --------------------------------------------------
 
-app.listen(PORT, () => {
-  console.log(`Prices and trends proxy running at http://localhost:${PORT}`);
+async function start() {
+  const db = createDatabase();
+  await initializeDatabase(db);
+  await seedSuperAdmin(db);
+  await seedReadOnlySuperAdmin(db);
+  editorialDb = db;
+  app.use('/api', platformRoutes(db, { getExternalStats: () => {
+    const trendEntries = [...cache.entries()].filter(([key]) => key.startsWith('trend-'));
+    const trendArticles = trendEntries.flatMap(([, value]) => value.data || []);
+    const uniqueNews = new Map(trendArticles.map((article) => [article.link || article.id, article]));
+    const agmarknetCache = cache.get('agmarknet');
+    const yarnCache = cache.get('yarn');
+    return {
+      news: uniqueNews.size,
+      newsLoaded: trendEntries.length > 0,
+      newsPublishers: [...new Set([...uniqueNews.values()].map((article) => article.source).filter(Boolean))].sort(),
+      agmarknet: agmarknetCache?.data?.length || 0,
+      agmarknetLoaded: Boolean(agmarknetCache),
+      yarn: yarnCache?.data?.length || 0,
+      yarnLoaded: Boolean(yarnCache),
+      yarnEnabled: Boolean(YARN_PRICES_URL),
+      newsEnabled: Boolean(NEWS_DATA_API_KEY),
+      agmarknetEnabled: Boolean(DATA_GOV_IN_API_KEY && AGMARKNET_RESOURCE_ID),
+      eventbriteEnabled: process.env.CRAWL_EVENTBRITE === '1',
+    };
+  } }));
+  app.use((error, req, res, next) => {
+    console.error('[api] Request failed:', error);
+    if (res.headersSent) return next(error);
+    res.status(500).json({ message: 'The server could not complete this request.' });
+  });
+
+  app.listen(PORT, () => {
+  console.log(`Hapzo360 API running at http://localhost:${PORT}`);
 
   if (!DATA_GOV_IN_API_KEY || !AGMARKNET_RESOURCE_ID) {
     console.warn(
@@ -1559,4 +1611,10 @@ app.listen(PORT, () => {
 
   // Pre-crawl Chennai, Coimbatore and Madurai so the first visitor is fast
   warmHappenings();
+  });
+}
+
+start().catch((error) => {
+  console.error('[startup] Could not connect to MySQL or initialize the schema:', error.message);
+  process.exitCode = 1;
 });

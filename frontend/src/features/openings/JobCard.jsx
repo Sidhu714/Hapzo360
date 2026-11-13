@@ -103,14 +103,16 @@ export default function JobCard({ job, onOpen, onApply }) {
       </div>
 
       {/* Actions */}
-      <div className="mt-5 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          className="btn-primary flex min-h-11 min-w-0 items-center justify-center rounded-xl px-2 py-3 text-center text-sm font-semibold"
-          onClick={() => onApply(job)}
-        >
-          {t('openings.apply')}
-        </button>
+      <div className={`mt-5 grid gap-2 ${onApply ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {onApply && (
+          <button
+            type="button"
+            className="btn-primary flex min-h-11 min-w-0 items-center justify-center rounded-xl px-2 py-3 text-center text-sm font-semibold"
+            onClick={() => onApply(job)}
+          >
+            {t('openings.apply')}
+          </button>
+        )}
 
         <button
           type="button"

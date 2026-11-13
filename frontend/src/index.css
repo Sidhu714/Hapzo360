@@ -27,7 +27,8 @@ html { scroll-behavior: smooth; }
   line-height: 1.1;
 }
 .logo-360 {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

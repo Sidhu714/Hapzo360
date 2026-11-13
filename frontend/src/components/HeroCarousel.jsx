@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { usePeopleAuth } from '../context/PeopleAuthContext';
 import {
   ArrowLeft,
   ArrowRight,
@@ -46,6 +47,7 @@ const slides = [
 ];
 
 export default function HeroCarousel() {
+  const { person } = usePeopleAuth();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -141,13 +143,13 @@ export default function HeroCarousel() {
               />
             </Link>
 
-            <Link
+            {!person && <Link
               to="/post-job"
               className="inline-flex items-center gap-2 rounded-full border border-white/30 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               I'm hiring
               <ArrowRight size={16} />
-            </Link>
+            </Link>}
           </div>
         </div>
 

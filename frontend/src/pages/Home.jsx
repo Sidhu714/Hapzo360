@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 
 import { useLanguage } from '../context/LanguageContext';
+import happeningsVideo from '../assets/happenings.mp4';
+import openingsVideo from '../assets/opening.mp4';
+import trendsVideo from '../assets/trend.mp4';
 import './home.css';
 
 /* ------------------------------------------------------------------ */
@@ -346,6 +349,12 @@ const SERVICES = [
   { id: 'technologies', to: '/services/technologies', tone: 'midnightSignal', title: 'Technologies', desc: 'Smarter technology, built to move with you.', cta: 'Explore tools', Graphic: TechGraphic, className: 'service-card--wide md:col-span-2 lg:col-span-4 lg:col-start-7' },
 ];
 
+const CARD_VIDEOS = {
+  happenings: happeningsVideo,
+  openings: openingsVideo,
+  trends: trendsVideo,
+};
+
 const translate = (t, key, fallback) => {
   const value = t(key);
   return typeof value === 'string' && value && value !== key ? value : fallback;
@@ -358,31 +367,11 @@ const spotlight = (e) => {
   e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
 };
 
-function CircuitBackdrop() {
-  return (
-    <svg aria-hidden="true" className="home-circuit-backdrop" viewBox="0 0 1600 1500" preserveAspectRatio="none">
-      <path className="home-circuit-rail" d="M-30 250h190v120h220v-190h230v300h250v-160h260v220h520" />
-      <path className="home-circuit-current" d="M-30 250h190v120h220v-190h230v300h250v-160h260v220h520" />
-      <path className="home-circuit-rail" d="M-40 820h300v-180h250v260h260v-210h300v190h210v-250h380" />
-      <path className="home-circuit-current home-circuit-current--slow" d="M-40 820h300v-180h250v260h260v-210h300v190h210v-250h380" />
-      <path className="home-circuit-rail" d="M80 1320h260v-180h270v150h310v-210h300v170h420" />
-      <path className="home-circuit-current home-circuit-current--slow" d="M80 1320h260v-180h270v150h310v-210h300v170h420" />
-      <g className="home-circuit-nodes">
-        <circle cx="160" cy="250" r="5" /><circle cx="600" cy="180" r="5" />
-        <circle cx="1100" cy="320" r="5" /><circle cx="260" cy="640" r="5" />
-        <circle cx="1030" cy="690" r="5" /><circle cx="1180" cy="1080" r="5" />
-        <circle cx="610" cy="1290" r="5" />
-      </g>
-    </svg>
-  );
-}
-
 export default function ServiceGrid() {
   const { t } = useLanguage();
 
   return (
     <div className="home-page relative isolate min-h-screen overflow-hidden">
-    <CircuitBackdrop />
     <div className="relative z-10 mx-auto grid w-full max-w-[1512px] grid-cols-1 gap-7 px-5 py-8 sm:grid-cols-2 sm:gap-8 sm:px-8 sm:py-10 lg:grid-cols-12 lg:gap-9 xl:gap-10 xl:px-12 xl:py-12">
       {SERVICES.map((service, index) => {
         const tone = TONES[service.tone];
@@ -404,6 +393,20 @@ export default function ServiceGrid() {
             }}
             className={`service-card service-card--${service.id} group relative flex min-h-[330px] flex-col overflow-hidden rounded-[24px] p-5 text-white outline-none focus-visible:ring-4 focus-visible:ring-white/60 motion-safe:transition-transform motion-safe:duration-300 motion-safe:hover:-translate-y-1.5 md:min-h-[350px] md:p-5 lg:min-h-[370px] ${service.className ?? ''}`}
           >
+            {CARD_VIDEOS[service.id] && (
+              <video
+                className="service-card-background-video"
+                src={CARD_VIDEOS[service.id]}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                aria-hidden="true"
+                tabIndex={-1}
+              />
+            )}
+
             <div className="service-card-copy relative z-10">
               <span className="service-chip">
                 {translate(t, `services.${service.id}.title`, service.title)}
@@ -413,9 +416,12 @@ export default function ServiceGrid() {
               </h3>
             </div>
 
-            <div aria-hidden="true" className={`service-art service-art--${service.id}`}>
-              <Graphic />
-            </div>
+            {/* Keep the Openings and Trends scenes mounted; CSS hides them while their videos play. */}
+            {service.id !== 'happenings' && (
+              <div aria-hidden="true" className={`service-art service-art--${service.id}`}>
+                <Graphic />
+              </div>
+            )}
 
             <div className="relative z-10 mt-auto flex items-center justify-between pt-6 text-base font-extrabold">
               {translate(t, `services.${service.id}.cta`, service.cta)}

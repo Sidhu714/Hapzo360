@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Briefcase, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { usePeopleAuth } from '../../context/PeopleAuthContext';
+import { useCompanyAuth } from '../../context/CompanyAuthContext';
 import Loader from '../../components/Loader';
 import FilterSidebar from './FilterSidebar';
 import JobCard from './JobCard';
@@ -9,7 +11,7 @@ import JobDetail from './JobDetail';
 import ApplyModal from './ApplyModal';
 import SearchSelect from './SearchSelect';
 import HiringPipeline from './HiringPipeline';
-import * as api from './openingsApi';
+import * as api from './openingsApiRemote';
 import { DISTRICTS } from '../../data/indiaLocations';
 import './openings.css';
 
@@ -139,8 +141,13 @@ const STYLES = `
 
 export default function OpeningsPage() {
   const { t } = useLanguage();
+  const { person, requestPeopleAuth } = usePeopleAuth();
+  const { company } = useCompanyAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [jobs, setJobs] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   const [f, setF] = useState(() => ({
     q: params.get('q') || '',
@@ -155,7 +162,9 @@ export default function OpeningsPage() {
   useEffect(() => {
     let active = true;
     const refreshJobs = () => api.listJobs().then((items) => {
-      if (active) setJobs(items);
+      if (active) { setJobs(items); setLoadError(''); }
+    }).catch((error) => {
+      if (active) { setJobs((current) => current || []); setLoadError(error.message); }
     });
     refreshJobs();
     const interval = setInterval(refreshJobs, 30_000);
@@ -164,6 +173,14 @@ export default function OpeningsPage() {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    const action = location.state?.authAction;
+    if (action?.type !== 'applyJob' || !person || company || !jobs) return;
+    const job = jobs.find((item) => item.id === action.jobId);
+    if (job) setApplyTo(job);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.state, location.pathname, location.search, person, company, jobs, navigate]);
 
   const list = useMemo(
     () => (jobs || []).filter((j) => matches(j, f)),
@@ -181,8 +198,13 @@ export default function OpeningsPage() {
     });
 
   const startApply = (job) => {
+    if (company) return;
     setDetail(null);
-    setApplyTo(job);
+    requestPeopleAuth({
+      purpose: 'application',
+      action: { type: 'applyJob', jobId: job.id },
+      onAuthenticated: () => setApplyTo(job),
+    });
   };
 
   return (
@@ -200,6 +222,7 @@ export default function OpeningsPage() {
       <HiringPipeline />
 
       <div className="page-shell relative z-10 py-8 md:py-11">
+        {loadError && <p role="alert" className="mb-5 rounded-xl border border-white/20 bg-white/10 px-5 py-4 text-sm text-white">{loadError}</p>}
         {/* Hero */}
         <section className="py-6 md:py-10">
           <div className="max-w-4xl">
@@ -301,7 +324,7 @@ export default function OpeningsPage() {
                     key={j.id}
                     job={j}
                     onOpen={setDetail}
-                    onApply={startApply}
+                    onApply={company ? undefined : startApply}
                   />
                 ))}
               </div>
@@ -325,13 +348,14 @@ export default function OpeningsPage() {
           <JobDetail
             job={detail}
             onClose={() => setDetail(null)}
-            onApply={startApply}
+            onApply={company ? undefined : startApply}
           />
         )}
 
-        {applyTo && (
+        {applyTo && !company && (
           <ApplyModal
             job={applyTo}
+            person={person}
             onClose={() => setApplyTo(null)}
           />
         )}
