@@ -14,6 +14,7 @@ import { CompanyAuthForm } from './context/CompanyAuthContext';
 
 const PostJobPage = lazy(() => import('./features/openings/PostJobPage'));
 const ExpiredJobsPage = lazy(() => import('./features/openings/ExpiredJobsPage'));
+const HappeningDetailsPage = lazy(() => import('./features/happenings/HappeningDetailsPage'));
 const SuperAdminLogin = lazy(() => import('./features/super-admin/SuperAdminLogin'));
 const SuperAdminDashboard = lazy(() => import('./features/super-admin/SuperAdminDashboard'));
 
@@ -55,6 +56,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="about" element={<About />} />
         <Route path="services" element={<Services />} />
+        <Route path="services/happenings/:eventId" element={<Suspense fallback={<Loader />}><HappeningDetailsPage /></Suspense>} />
         <Route path="services/:slug" element={<ServiceView />} />
         <Route path="sign-in" element={<AccountPage />} />
         <Route path="sign-up" element={<AccountPage />} />

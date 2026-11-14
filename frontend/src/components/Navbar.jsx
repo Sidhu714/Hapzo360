@@ -18,6 +18,9 @@ const LINKS = [
   ['/contact', 'nav.contact'],
 ];
 
+const SHOW_ACCOUNT_MENU = true;
+const SHOW_POST_JOB_BUTTON = false;
+
 
 export function Logo({ light = false }) {
   return (
@@ -88,7 +91,7 @@ export default function Navbar() {
     isTrendsPage || isPriceListPage || isTechnologyPage || isOpeningsTheme;
 
   const showPostJob =
-    location.pathname === '/services/openings' && !person;
+    SHOW_POST_JOB_BUTTON && location.pathname === '/services/openings' && !person;
 
 
   useEffect(() => {
@@ -214,7 +217,7 @@ export default function Navbar() {
             <LanguageSwitcher dark={isDarkPage} />
           </div>
 
-          <div className="relative">
+          {SHOW_ACCOUNT_MENU && <div className="relative">
             <button type="button" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen} aria-label="Account options" className={`navbar-account-button inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition ${isDarkPage ? 'text-white hover:bg-white/10' : 'text-[#315844] hover:bg-[#eaf1df]'}`}>
               <UserRound size={17} aria-hidden="true" /><span className="hidden sm:inline">{person ? person.name.split(' ')[0] : company ? company.companyName.split(' ')[0] : 'Account'}</span>
             </button>
@@ -231,7 +234,7 @@ export default function Navbar() {
                 {company && <button type="button" onClick={() => { signOutCompany(); setAccountOpen(false); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-700 transition hover:bg-red-50 hover:text-red-800"><LogOut size={15} /> Sign out of Company</button>}
               </div>
             )}
-          </div>
+          </div>}
 
           {showPostJob && (
             <Link

@@ -11,7 +11,7 @@ import JobEditModal from './JobEditModal';
 import AdminOpeningForm from './AdminOpeningForm';
 import SuperAdminReadOnlyOverview from './SuperAdminReadOnlyOverview';
 import SuperAdminMetricPage from './SuperAdminMetricPage';
-import { deleteAdminListing, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, uploadEditorialImage, logoutAdmin, updateAdminEvent, updateAdminJob } from './adminApi';
+import { deleteAdminListing, deleteAdminCompany, deleteAdminPerson, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminJobApplications, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, uploadEditorialImage, logoutAdmin, updateAdminCompany, updateAdminEvent, updateAdminJob, updateAdminPerson } from './adminApi';
 
 const sections = [
   { key: 'people', title: 'People', description: 'Individual accounts and activity', icon: Users },
@@ -36,6 +36,51 @@ function ReviewHistory({ history = [] }) {
         {review.reason && <p className="mt-0.5 text-[#8e3b34]">Reason: {review.reason}</p>}
       </li>)}
     </ol>
+  </div>;
+}
+
+function JobApplicationsModal({ job, applications, busy, error, onClose }) {
+  const count = applications.length;
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 sm:grid sm:place-items-center" role="dialog" aria-modal="true" aria-labelledby="job-applications-heading">
+    <section className="mx-auto flex min-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:min-h-0 sm:max-h-[88dvh]" onClick={(event) => event.stopPropagation()}>
+      <div className="flex items-start justify-between gap-4 border-b border-[#e4ece0] p-5 sm:p-6"><div><p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#52705b]">Opening applications</p><h2 id="job-applications-heading" className="mt-2 text-xl font-extrabold text-[#19342a] sm:text-2xl">{job.title || 'Untitled opening'}</h2><p className="mt-1 text-sm text-[#5d6d62]">{busy ? 'Loading applicants…' : `${count} applicant${count === 1 ? '' : 's'}`}</p></div><button type="button" onClick={onClose} className="rounded-full p-2 text-[#315844] transition hover:bg-[#eef3e9]" aria-label="Close applicants"><X size={20} /></button></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+        {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {busy ? <div className="space-y-3" aria-busy="true">{[0, 1].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl bg-[#eef3e9]" />)}</div> : !error && (count ? <div className="grid gap-3">{applications.map((application) => <article key={application.id} className="rounded-xl border border-[#d9e4d7] bg-[#f9fbf7] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="text-base font-extrabold text-[#19342a]">{application.name || 'Name not provided'}</h3><span className="text-xs text-[#66806c]">Applied {application.appliedAt ? new Date(application.appliedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</span></div><dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Email ID</dt><dd className="mt-1 break-all text-[#43584b]">{application.email || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">WhatsApp number</dt><dd className="mt-1 font-semibold text-[#43584b]">{application.phone ? `+91 ${application.phone}` : 'Not provided'}</dd></div></dl></article>)}</div> : <p className="rounded-xl border border-dashed border-[#cbd9ca] p-5 text-sm text-[#64736a]">No one has applied for this opening yet.</p>)}</div>
+      <div className="border-t border-[#e4ece0] p-5 sm:p-6"><button type="button" onClick={onClose} className="w-full rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#244936]">Done</button></div>
+    </section>
+  </div>;
+}
+
+function PersonEditModal({ person, onClose, onSave, busy, error }) {
+  const [form, setForm] = useState({ name: person.name || '', email: person.email || '', phone: person.phone || '' });
+  const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const submit = (event) => {
+    event.preventDefault();
+    onSave({ ...form, name: form.name.trim(), email: form.email.trim(), phone: form.phone.replace(/\D/g, '') });
+  };
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 sm:grid sm:place-items-center" role="dialog" aria-modal="true" aria-labelledby="person-edit-heading">
+    <form onSubmit={submit} className="mx-auto flex min-h-full w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl sm:min-h-0">
+      <div className="flex items-start justify-between gap-4 border-b border-[#e4ece0] p-5 sm:p-6"><div><p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#52705b]">People management</p><h2 id="person-edit-heading" className="mt-2 text-2xl font-extrabold text-[#19342a]">Edit person</h2></div><button type="button" onClick={onClose} disabled={busy} className="rounded-full p-2 text-[#315844] hover:bg-[#eef3e9] disabled:opacity-50" aria-label="Close edit form"><X size={20} /></button></div>
+      <div className="grid gap-4 p-5 sm:p-6"><label className="grid gap-2 text-sm font-bold text-[#315844]">Name<input required maxLength={100} value={form.name} onChange={(event) => update('name', event.target.value)} className="rounded-xl border border-[#cbd9ca] bg-white p-3 text-[#19342a] outline-none focus:border-[#315844]" /></label><label className="grid gap-2 text-sm font-bold text-[#315844]">Email ID<input required type="email" maxLength={254} value={form.email} onChange={(event) => update('email', event.target.value)} className="rounded-xl border border-[#cbd9ca] bg-white p-3 text-[#19342a] outline-none focus:border-[#315844]" /></label><label className="grid gap-2 text-sm font-bold text-[#315844]">WhatsApp number<div className="flex overflow-hidden rounded-xl border border-[#cbd9ca] bg-white focus-within:border-[#315844]"><span className="border-r border-[#d9e4d7] px-3 py-3 text-[#64736a]">+91</span><input required inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} value={form.phone} onChange={(event) => update('phone', event.target.value.replace(/\D/g, '').slice(0, 10))} className="min-w-0 flex-1 p-3 text-[#19342a] outline-none" placeholder="10-digit number" /></div></label>{error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div>
+      <div className="mt-auto flex flex-col-reverse gap-3 border-t border-[#e4ece0] p-5 sm:flex-row sm:justify-end sm:p-6"><button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-[#cbd9ca] px-5 py-3 text-sm font-bold text-[#315844] disabled:opacity-50">Cancel</button><button type="submit" disabled={busy} className="rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white hover:bg-[#244936] disabled:opacity-50">{busy ? 'Saving…' : 'Save changes'}</button></div>
+    </form>
+  </div>;
+}
+
+function CompanyEditModal({ company, onClose, onSave, busy, error }) {
+  const [form, setForm] = useState({ companyName: company.companyName || '', email: company.email || '', phone: company.phone || '' });
+  const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const submit = (event) => {
+    event.preventDefault();
+    onSave({ ...form, companyName: form.companyName.trim(), email: form.email.trim(), phone: form.phone.replace(/\D/g, '') });
+  };
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 sm:grid sm:place-items-center" role="dialog" aria-modal="true" aria-labelledby="company-edit-heading">
+    <form onSubmit={submit} className="mx-auto flex min-h-full w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl sm:min-h-0">
+      <div className="flex items-start justify-between gap-4 border-b border-[#e4ece0] p-5 sm:p-6"><div><p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#52705b]">Company management</p><h2 id="company-edit-heading" className="mt-2 text-2xl font-extrabold text-[#19342a]">Edit company</h2></div><button type="button" onClick={onClose} disabled={busy} className="rounded-full p-2 text-[#315844] hover:bg-[#eef3e9] disabled:opacity-50" aria-label="Close edit form"><X size={20} /></button></div>
+      <div className="grid gap-4 p-5 sm:p-6"><label className="grid gap-2 text-sm font-bold text-[#315844]">Company name<input required maxLength={120} value={form.companyName} onChange={(event) => update('companyName', event.target.value)} className="rounded-xl border border-[#cbd9ca] bg-white p-3 text-[#19342a] outline-none focus:border-[#315844]" /></label><label className="grid gap-2 text-sm font-bold text-[#315844]">Email ID<input required type="email" maxLength={254} value={form.email} onChange={(event) => update('email', event.target.value)} className="rounded-xl border border-[#cbd9ca] bg-white p-3 text-[#19342a] outline-none focus:border-[#315844]" /></label><label className="grid gap-2 text-sm font-bold text-[#315844]">WhatsApp number<div className="flex overflow-hidden rounded-xl border border-[#cbd9ca] bg-white focus-within:border-[#315844]"><span className="border-r border-[#d9e4d7] px-3 py-3 text-[#64736a]">+91</span><input required inputMode="numeric" pattern="[6-9][0-9]{9}" maxLength={10} value={form.phone} onChange={(event) => update('phone', event.target.value.replace(/\D/g, '').slice(0, 10))} className="min-w-0 flex-1 p-3 text-[#19342a] outline-none" placeholder="10-digit number" /></div></label>{error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div>
+      <div className="mt-auto flex flex-col-reverse gap-3 border-t border-[#e4ece0] p-5 sm:flex-row sm:justify-end sm:p-6"><button type="button" onClick={onClose} disabled={busy} className="rounded-xl border border-[#cbd9ca] px-5 py-3 text-sm font-bold text-[#315844] disabled:opacity-50">Cancel</button><button type="submit" disabled={busy} className="rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white hover:bg-[#244936] disabled:opacity-50">{busy ? 'Saving…' : 'Save changes'}</button></div>
+    </form>
   </div>;
 }
 
@@ -67,6 +112,9 @@ function AdminManagementDashboard({ mode, session }) {
   const [records, setRecords] = useState([]);
   const [eventCompanyFilter, setEventCompanyFilter] = useState('all');
   const [eventStatusFilter, setEventStatusFilter] = useState('all');
+  const [jobCompanyFilter, setJobCompanyFilter] = useState('all');
+  const [jobStatusFilter, setJobStatusFilter] = useState('all');
+  const [companySearch, setCompanySearch] = useState('');
   const [loadError, setLoadError] = useState('');
   const [clipUrl, setClipUrl] = useState('');
   const [clipBusy, setClipBusy] = useState(false);
@@ -79,6 +127,12 @@ function AdminManagementDashboard({ mode, session }) {
   const [actionBusy, setActionBusy] = useState('');
   const [editingEvent, setEditingEvent] = useState(null);
   const [editingJob, setEditingJob] = useState(null);
+  const [editingPerson, setEditingPerson] = useState(null);
+  const [editingCompany, setEditingCompany] = useState(null);
+  const [applicationsJob, setApplicationsJob] = useState(null);
+  const [jobApplications, setJobApplications] = useState([]);
+  const [jobApplicationsBusy, setJobApplicationsBusy] = useState(false);
+  const [jobApplicationsError, setJobApplicationsError] = useState('');
   const [editError, setEditError] = useState('');
   const [notice, setNotice] = useState('');
   const [actionModal, setActionModal] = useState(null);
@@ -114,6 +168,12 @@ function AdminManagementDashboard({ mode, session }) {
     setEventStatusFilter('all');
   }, [selected]);
 
+  useEffect(() => {
+    if (selected !== 'jobs') return;
+    setJobCompanyFilter('all');
+    setJobStatusFilter('all');
+  }, [selected]);
+
   const signOut = async () => {
     setBusy(true);
     try {
@@ -135,6 +195,16 @@ function AdminManagementDashboard({ mode, session }) {
     try { setClipUrl(URL.createObjectURL(await getAdminClip(eventId))); }
     catch (error) { setLoadError(error.message); }
     finally { setClipBusy(false); }
+  };
+
+  const openJobApplications = async (job) => {
+    setApplicationsJob(job);
+    setJobApplications([]);
+    setJobApplicationsError('');
+    setJobApplicationsBusy(true);
+    try { setJobApplications(await getAdminJobApplications(job.id)); }
+    catch (error) { setJobApplicationsError(error.message || 'Could not load applicants.'); }
+    finally { setJobApplicationsBusy(false); }
   };
 
   const decide = (kind, item, decision) => {
@@ -159,6 +229,16 @@ function AdminManagementDashboard({ mode, session }) {
         setRecords((current) => current.filter((record) => record.id !== item.id));
         await refreshAdmin();
         setNotice(`${kind === 'jobs' ? 'Opening' : 'Happening'} removed from public listings.`);
+      } else if (type === 'delete-person') {
+        await deleteAdminPerson(item.id);
+        setRecords((current) => current.filter((record) => record.id !== item.id));
+        await refreshAdmin();
+        setNotice('Person and their related activity were deleted.');
+      } else if (type === 'delete-company') {
+        await deleteAdminCompany(item.id);
+        setRecords((current) => current.filter((record) => record.id !== item.id));
+        await refreshAdmin();
+        setNotice('Company and its public listings were deleted.');
       } else {
         await reviewSubmission(kind, item.id, decision, reviewReason.trim());
         await refreshAdmin();
@@ -194,6 +274,40 @@ function AdminManagementDashboard({ mode, session }) {
   const deleteListing = (kind, item) => {
     setModalError('');
     setActionModal({ type: 'delete-listing', kind, item });
+  };
+
+  const deletePerson = (person) => {
+    setModalError('');
+    setActionModal({ type: 'delete-person', item: person });
+  };
+
+  const deleteCompany = (company) => {
+    setModalError('');
+    setActionModal({ type: 'delete-company', item: company });
+  };
+
+  const saveAdminPerson = async (person) => {
+    if (!editingPerson) return;
+    setActionBusy(editingPerson.id); setEditError('');
+    try {
+      const updated = await updateAdminPerson(editingPerson.id, person);
+      setRecords((current) => current.map((record) => record.id === updated.id ? updated : record));
+      setEditingPerson(null);
+      setNotice('Person details updated.');
+    } catch (error) { setEditError(error.message || 'Could not update this person.'); }
+    finally { setActionBusy(''); }
+  };
+
+  const saveAdminCompany = async (company) => {
+    if (!editingCompany) return;
+    setActionBusy(editingCompany.id); setEditError('');
+    try {
+      const updated = await updateAdminCompany(editingCompany.id, company);
+      setRecords((current) => current.map((record) => record.id === updated.id ? updated : record));
+      setEditingCompany(null);
+      setNotice('Company details updated.');
+    } catch (error) { setEditError(error.message || 'Could not update this company.'); }
+    finally { setActionBusy(''); }
   };
 
   const saveAdminEvent = async (event) => {
@@ -249,7 +363,16 @@ function AdminManagementDashboard({ mode, session }) {
   }, {})).sort((a, b) => a.name.localeCompare(b.name)) : [];
   const matchesSelectedCompany = (item) => eventCompanyFilter === 'all' || (item.companyId || '__hapzo360_admin__') === eventCompanyFilter;
   const eventStatusCounts = ['approved', 'pending', 'rejected'].reduce((counts, status) => ({ ...counts, [status]: records.filter((item) => matchesSelectedCompany(item) && item.status === status).length }), {});
-  const visibleRecords = selected === 'events' ? records.filter((item) => matchesSelectedCompany(item) && (eventStatusFilter === 'all' || item.status === eventStatusFilter)) : records;
+  const jobCompanyOptions = selected === 'jobs' ? Object.values(records.reduce((groups, item) => {
+    const id = item.companyId || '__hapzo360_admin__';
+    if (!groups[id]) groups[id] = { id, name: item.companyName || (item.createdByAdmin ? 'Hapzo360 admin' : 'Unknown company'), count: 0 };
+    groups[id].count += 1;
+    return groups;
+  }, {})).sort((a, b) => a.name.localeCompare(b.name)) : [];
+  const matchesSelectedJobCompany = (item) => jobCompanyFilter === 'all' || (item.companyId || '__hapzo360_admin__') === jobCompanyFilter;
+  const jobStatusCounts = ['approved', 'pending', 'rejected'].reduce((counts, status) => ({ ...counts, [status]: records.filter((item) => matchesSelectedJobCompany(item) && item.status === status).length }), {});
+  const fetchedHappeningsCount = Number(overview?.content?.external?.happenings || 0);
+  const visibleRecords = selected === 'events' ? records.filter((item) => matchesSelectedCompany(item) && (eventStatusFilter === 'all' || item.status === eventStatusFilter)) : selected === 'jobs' ? records.filter((item) => matchesSelectedJobCompany(item) && (jobStatusFilter === 'all' || item.status === jobStatusFilter)) : selected === 'companies' ? records.filter((item) => `${item.companyName || ''} ${item.email || ''} ${item.phone || ''}`.toLowerCase().includes(companySearch.trim().toLowerCase())) : records;
 
   if (selected && ![...sections.map((item) => item.key), 'trends', 'technology'].includes(selected)) return <Navigate to="/super-admin" replace />;
 
@@ -275,7 +398,9 @@ function AdminManagementDashboard({ mode, session }) {
       {createKind === 'events' && <AdminCreateForm kind="events" onCreated={() => navigate('/super-admin/events')} />}
       {selected && <><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Administration</p><h1 className="mt-3 text-4xl font-extrabold tracking-tight">{sections.find((item) => item.key === selected)?.title || (selected === 'trends' ? 'Trends' : 'Technologies')}</h1></>}
       {(selected === 'jobs' || selected === 'events') && <Link to={`/super-admin/${selected}/new`} className="mt-5 inline-flex rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#244936]">Create {selected === 'jobs' ? 'opening' : 'happening'} →</Link>}
-      {selected === 'events' && <section className="mt-7 rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm" aria-label="Happening filters"><div><h2 className="text-lg font-extrabold">Filter happenings</h2><p className="mt-1 text-sm text-[#64736a]">Choose a company to see its moderation totals.</p></div><div className="mt-4 grid gap-3 lg:grid-cols-4"><label className="grid gap-1.5 text-sm font-bold text-[#315844]">Company<select value={eventCompanyFilter} onChange={(event) => { setEventCompanyFilter(event.target.value); setEventStatusFilter('all'); }} className="rounded-xl border border-[#cbd9ca] bg-white p-3 font-normal text-[#19342a]"><option value="all">All companies · {eventCompanyOptions.length} companies</option>{eventCompanyOptions.map((company) => <option key={company.id} value={company.id}>{company.name} · {company.count} happening{company.count === 1 ? '' : 's'}</option>)}</select></label>{[['approved', 'Approved'], ['pending', 'Pending'], ['rejected', 'Rejected']].map(([status, label]) => <button key={status} type="button" onClick={() => setEventStatusFilter((current) => current === status ? 'all' : status)} className={`rounded-xl border p-3 text-left transition ${eventStatusFilter === status ? 'border-[#315844] bg-[#315844] text-white' : 'border-[#d9e4d7] bg-[#f8fbf6] text-[#19342a] hover:border-[#88a28d]'}`} aria-pressed={eventStatusFilter === status}><span className="block text-xs font-bold uppercase tracking-wide opacity-80">{label}</span><span className="mt-1 block text-2xl font-extrabold">{eventStatusCounts[status]}</span></button>)}</div><p className="mt-3 text-xs text-[#64736a]">Showing {visibleRecords.length} happening{visibleRecords.length === 1 ? '' : 's'}. Click a status box to filter; click it again to clear that status filter.</p></section>}
+      {selected === 'events' && <section className="mt-7 w-full rounded-2xl border border-[#d9e4d7] bg-white p-4 shadow-sm sm:p-5" aria-label="Happening filters"><div><h2 className="text-lg font-extrabold">Filter happenings</h2><p className="mt-1 text-sm text-[#64736a]">Choose a company to see its moderation totals.</p></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5"><label className="col-span-2 grid w-full gap-1 text-sm font-bold text-[#315844] sm:col-span-1">Company<select value={eventCompanyFilter} onChange={(event) => { setEventCompanyFilter(event.target.value); setEventStatusFilter('all'); }} className="w-full rounded-xl border border-[#cbd9ca] bg-white p-2.5 font-normal text-[#19342a]"><option value="all">All companies · {eventCompanyOptions.length} companies</option>{eventCompanyOptions.map((company) => <option key={company.id} value={company.id}>{company.name} · {company.count} happening{company.count === 1 ? '' : 's'}</option>)}</select></label>{[['approved', 'Approved'], ['pending', 'Pending'], ['rejected', 'Rejected']].map(([status, label]) => <button key={status} type="button" onClick={() => setEventStatusFilter((current) => current === status ? 'all' : status)} className={`min-h-[78px] rounded-xl border p-2.5 text-left transition ${eventStatusFilter === status ? 'border-[#315844] bg-[#315844] text-white' : 'border-[#d9e4d7] bg-[#f8fbf6] text-[#19342a] hover:border-[#88a28d]'}`} aria-pressed={eventStatusFilter === status}><span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</span><span className="mt-0.5 block text-xl font-extrabold">{eventStatusCounts[status]}</span></button>)}<div className="min-h-[78px] rounded-xl border border-[#c9dcbf] bg-[#f3f9ef] p-2.5 text-left"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#52705b]">Internet fetched</span><span className="mt-0.5 block text-xl font-extrabold text-[#19342a]">{fetchedHappeningsCount}</span><span className="mt-0.5 block text-[11px] leading-4 text-[#64736a]">external sources</span></div></div><p className="mt-3 text-xs text-[#64736a]">Showing {visibleRecords.length} happening{visibleRecords.length === 1 ? '' : 's'}. Click a status box to filter; click it again to clear that status filter.</p></section>}
+      {selected === 'jobs' && <section className="mt-7 w-full rounded-2xl border border-[#d9e4d7] bg-white p-4 shadow-sm sm:p-5" aria-label="Opening filters"><div><h2 className="text-lg font-extrabold">Filter openings</h2><p className="mt-1 text-sm text-[#64736a]">Choose a company to see its moderation totals.</p></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3"><label className="col-span-2 grid w-full gap-1 text-sm font-bold text-[#315844] sm:col-span-1">Company<select value={jobCompanyFilter} onChange={(event) => { setJobCompanyFilter(event.target.value); setJobStatusFilter('all'); }} className="w-full rounded-xl border border-[#cbd9ca] bg-white p-2.5 font-normal text-[#19342a]"><option value="all">All companies · {jobCompanyOptions.length} companies</option>{jobCompanyOptions.map((company) => <option key={company.id} value={company.id}>{company.name} · {company.count} opening{company.count === 1 ? '' : 's'}</option>)}</select></label>{[['approved', 'Approved'], ['pending', 'Pending'], ['rejected', 'Rejected']].map(([status, label]) => <button key={status} type="button" onClick={() => setJobStatusFilter((current) => current === status ? 'all' : status)} className={`min-h-[78px] rounded-xl border p-2.5 text-left transition ${jobStatusFilter === status ? 'border-[#315844] bg-[#315844] text-white' : 'border-[#d9e4d7] bg-[#f8fbf6] text-[#19342a] hover:border-[#88a28d]'}`} aria-pressed={jobStatusFilter === status}><span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</span><span className="mt-0.5 block text-xl font-extrabold">{jobStatusCounts[status]}</span></button>)}</div><p className="mt-3 text-xs text-[#64736a]">Showing {visibleRecords.length} opening{visibleRecords.length === 1 ? '' : 's'}. Click a status box to filter; click it again to clear that status filter.</p></section>}
+      {selected === 'companies' && <section className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Search companies"><p className="text-xs text-[#64736a]">Showing {visibleRecords.length} of {records.length} companies.</p><label className="w-full sm:w-80"><span className="sr-only">Search companies</span><input type="search" value={companySearch} onChange={(event) => setCompanySearch(event.target.value)} placeholder="Search companies" className="w-full rounded-xl border border-[#cbd9ca] bg-white px-3 py-2.5 text-sm text-[#19342a] shadow-sm outline-none focus:border-[#315844]" /></label></section>}
       {(selected === 'jobs' || selected === 'events') && <section className="mt-10" aria-labelledby="review-heading">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Moderation</p><h2 id="review-heading" className="mt-2 text-2xl font-extrabold">Awaiting approval</h2></div><span className="rounded-full bg-[#dcebd4] px-4 py-2 text-sm font-bold">{pending.jobs.length + pending.events.length} pending</span></div>
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -293,13 +418,18 @@ function AdminManagementDashboard({ mode, session }) {
           {selected === 'people' ? <dl className="mt-4 grid gap-3 rounded-xl border border-[#e4ece0] bg-[#f9fbf7] p-4"><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Name</dt><dd className="mt-1 break-words text-base font-extrabold text-[#19342a]">{item.name || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Email ID</dt><dd className="mt-1 break-all text-[#43584b]">{item.email || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">WhatsApp number</dt><dd className="mt-1 break-all font-semibold text-[#43584b]">{item.phone ? `+91 ${item.phone}` : 'Not provided'}</dd></div></dl> : <><h3 className="mt-2 break-words text-base font-extrabold">{item.name || item.companyName || item.title || 'Untitled'}</h3><p className="mt-2 break-words text-[#64736a]">{item.email || item.phone || item.location || item.venue || ''}</p></>}
           {item.createdByAdmin && <p className="mt-2 text-xs font-semibold text-[#315844]">Published by admin {item.creatorUsername}</p>}
           {item.status && <span className="mt-3 inline-block rounded-full bg-[#eef3e9] px-3 py-1 text-xs font-bold capitalize">{item.status}</span>}
+          {selected === 'jobs' && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#d9e4d7] bg-[#f7faf4] px-3 py-2.5"><span className="text-sm font-bold text-[#315844]">{Number(item.applicationCount || 0)} applied</span><button type="button" onClick={() => openJobApplications(item)} className="text-xs font-bold text-[#315844] underline underline-offset-2 hover:text-[#244936]">View details</button></div>}
           {(selected === 'jobs' || selected === 'events') && <ReviewHistory history={item.reviewHistory} />}
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#ecf0e9] pt-3">
             <span className="text-xs text-[#86968a]">{item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : ''}</span>
             <div className="flex items-center gap-3">
               {selected === 'events' && item.clipAvailable && <button type="button" disabled={clipBusy} onClick={() => openClip(item.id)} className="text-xs font-bold text-[#315844] underline underline-offset-2">View clip</button>}
+              {selected === 'people' && <button type="button" onClick={() => { setEditError(''); setEditingPerson(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.name}`}><Pencil size={14} /> Edit</button>}
+              {selected === 'companies' && <button type="button" onClick={() => { setEditError(''); setEditingCompany(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.companyName}`}><Pencil size={14} /> Edit</button>}
               {selected === 'jobs' && <button type="button" onClick={() => { setEditError(''); setEditingJob(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
               {selected === 'events' && <button type="button" onClick={() => { setEditError(''); setEditingEvent(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
+              {selected === 'people' && <button type="button" onClick={() => deletePerson(item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.name}`}><Trash2 size={14} /> Delete</button>}
+              {selected === 'companies' && <button type="button" onClick={() => deleteCompany(item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.companyName}`}><Trash2 size={14} /> Delete</button>}
               {(selected === 'jobs' || selected === 'events') && <button type="button" onClick={() => deleteListing(selected, item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.title}`}><Trash2 size={14} /> Delete</button>}
             </div>
           </div>
@@ -309,6 +439,9 @@ function AdminManagementDashboard({ mode, session }) {
       {actionModal && <AdminActionModal action={actionModal} reason={reviewReason} onReasonChange={setReviewReason} onClose={() => setActionModal(null)} onConfirm={confirmAction} busy={actionBusy === actionModal.item.id} error={modalError} />}
       {editingEvent && <EventEditModal event={editingEvent} allowOrganizer onClose={() => !actionBusy && setEditingEvent(null)} onSave={saveAdminEvent} onUploadImage={uploadEditorialImage} busy={actionBusy === editingEvent.id} error={editError} />}
       {editingJob && <JobEditModal job={editingJob} onClose={() => !actionBusy && setEditingJob(null)} onSave={saveAdminJob} busy={actionBusy === editingJob.id} error={editError} />}
+      {editingPerson && <PersonEditModal person={editingPerson} onClose={() => !actionBusy && setEditingPerson(null)} onSave={saveAdminPerson} busy={actionBusy === editingPerson.id} error={editError} />}
+      {editingCompany && <CompanyEditModal company={editingCompany} onClose={() => !actionBusy && setEditingCompany(null)} onSave={saveAdminCompany} busy={actionBusy === editingCompany.id} error={editError} />}
+      {applicationsJob && <JobApplicationsModal job={applicationsJob} applications={jobApplications} busy={jobApplicationsBusy} error={jobApplicationsError} onClose={() => { if (!jobApplicationsBusy) setApplicationsJob(null); }} />}
       <Link to="/" className="mt-10 inline-flex text-sm font-bold text-[#315844] underline underline-offset-4">View public site</Link>
       </div>
     </div>

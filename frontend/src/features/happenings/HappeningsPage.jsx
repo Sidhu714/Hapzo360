@@ -16,6 +16,7 @@ import { createClipRecorder, canRecordVideo, saveClip } from './FaceClip';
 const API_URL = import.meta.env.VITE_EVENTS_API_URL || '';
 const ONLINE_EVENTS_API_URL = `${API_BASE_URL}/api/happenings/search`;
 const EVENT_CACHE_KEY = 'happening.events.cache.v1';
+const EVENT_DETAILS_CACHE_KEY = 'happening.event-details.v1.';
 const HAPPENING_DISTRICTS = DISTRICTS['Tamil Nadu'] || [];
 const categories = ['All events', 'Business', 'Community', 'Hackathon', 'Meetups', 'Workshops', 'Webinar', 'Conference', 'Expo'];
 const TIME_FILTERS = [
@@ -367,7 +368,7 @@ function EventImage({ src, alt, category = 'Community', className = '' }) {
   );
 }
 
-const EventCard = memo(function EventCard({ event, index, onOpen }) {
+const EventCard = memo(function EventCard({ event, index, onOpen, onExplore }) {
   const title = event.title || event.name;
   return (
     <Reveal delay={Math.min(index, 8) * 45} className="flex">
@@ -392,9 +393,22 @@ const EventCard = memo(function EventCard({ event, index, onOpen }) {
         </div>
 
         <div className="flex flex-1 flex-col p-5 sm:p-6">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#1f46c9]">
-            <CalendarDays size={15} />
-            {formatDate(event.date || event.startDate)}
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[#1f46c9]">
+              <CalendarDays size={15} className="shrink-0" />
+              <span className="truncate">{formatDate(event.date || event.startDate)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                onOpen(event);
+              }}
+              className="inline-flex min-h-9 shrink-0 items-center rounded-full bg-[#1f46c9] px-3.5 text-sm font-bold text-white transition hover:bg-[#14308f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] focus-visible:ring-offset-2"
+              aria-label={`Join ${title || 'event'}`}
+            >
+              Join
+            </button>
           </div>
 
           <h3 className="line-clamp-2 text-xl font-extrabold leading-snug tracking-[-0.03em] transition-colors duration-300 group-hover:text-[#14308f]">{title}</h3>
@@ -429,10 +443,18 @@ const EventCard = memo(function EventCard({ event, index, onOpen }) {
                   <span>registered</span>
                 </div>
               )}
-              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1f46c9] transition-all duration-300 group-hover:gap-2.5">
+              <button
+                type="button"
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation();
+                  onExplore(event);
+                }}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md text-sm font-bold text-[#1f46c9] transition-all duration-300 hover:gap-2.5 hover:text-[#14308f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1f46c9] focus-visible:ring-offset-2"
+                aria-label={`Explore ${title || 'event'} on a separate page`}
+              >
                 Explore
                 <ArrowUpRight size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-              </span>
+              </button>
             </div>
             {event.scraped && event.sourceName && <p className="mt-2 truncate text-xs text-[#0b1220]/45">Source: {event.sourceName}</p>}
           </div>
@@ -482,7 +504,7 @@ function normalizeAngle(angle) {
 }
 
 const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', registrationUrl: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
-const EMPTY_EXTERNAL_REGISTRATION = { email: '', phone: '', password: '' };
+const EMPTY_EXTERNAL_REGISTRATION = { email: '', phone: '', password: '', termsAccepted: false };
 
 /* ---------- Main component ---------- */
 export default function Happening() {
@@ -932,6 +954,11 @@ export default function Happening() {
     closeTimerRef.current = window.setTimeout(() => { setAddOpen(false); setAddClosing(false); }, EXIT_MS);
   }, [stopCamera, discardClip]);
   const openDetails = useCallback(event => { window.clearTimeout(detailTimerRef.current); setDetailClosing(false); setSelectedEvent(event); }, []);
+  const exploreEvent = useCallback((event) => {
+    const eventId = eventIdentity(event);
+    try { window.sessionStorage.setItem(`${EVENT_DETAILS_CACHE_KEY}${eventId}`, JSON.stringify(event)); } catch { /* Navigation still works for this visit. */ }
+    navigate(`/services/happenings/${encodeURIComponent(eventId)}`, { state: { event } });
+  }, [navigate]);
   const closeDetails = useCallback(() => {
     setExternalRegistrationEvent(null);
     setDetailClosing(true);
@@ -940,7 +967,7 @@ export default function Happening() {
   }, []);
   const openExternalRegistration = useCallback((event) => {
     setExternalRegistrationError('');
-    setExternalRegistrationForm({ email: person?.email || '', phone: person?.phone || '', password: '' });
+    setExternalRegistrationForm({ email: person?.email || '', phone: person?.phone || '', password: '', termsAccepted: false });
     setExternalRegistrationEvent(event);
   }, [person]);
   const closeExternalRegistration = useCallback(() => {
@@ -986,6 +1013,7 @@ export default function Happening() {
     if (!/^\S+@\S+\.\S+$/.test(email)) { setExternalRegistrationError('Enter a valid email address.'); return; }
     if (!/^[6-9]\d{9}$/.test(phone)) { setExternalRegistrationError('Enter a valid 10-digit WhatsApp number.'); return; }
     if (password.length < 6) { setExternalRegistrationError('Create a password with at least 6 characters.'); return; }
+    if (!externalRegistrationForm.termsAccepted) { setExternalRegistrationError('Accept the Terms & Conditions to continue.'); return; }
     if (!externalRegistrationEvent) return;
     const registrationWindow = window.open('', '_blank');
     if (registrationWindow) registrationWindow.opener = null;
@@ -1322,7 +1350,7 @@ export default function Happening() {
             ) : filteredEvents.length ? (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredEvents.map((event, index) => (
-                  <EventCard key={event.id || `${event.title || event.name}-${index}`} event={event} index={index} onOpen={openDetails} />
+                  <EventCard key={event.id || `${event.title || event.name}-${index}`} event={event} index={index} onOpen={openDetails} onExplore={exploreEvent} />
                 ))}
               </div>
             ) : (
@@ -1567,6 +1595,10 @@ export default function Happening() {
             <label className="grid gap-2 text-sm font-bold text-[#0b1220]">Email address<input required type="email" maxLength={254} autoComplete="email" value={externalRegistrationForm.email} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, email: event.target.value }))} className="min-h-12 rounded-xl border border-[#0b1220]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#1f46c9] focus:ring-2 focus:ring-[#1f46c9]/20" placeholder="you@example.com" /></label>
             <label className="grid gap-2 text-sm font-bold text-[#0b1220]">WhatsApp number<div className="flex min-h-12 rounded-xl border border-[#0b1220]/15 bg-white transition focus-within:border-[#1f46c9] focus-within:ring-2 focus-within:ring-[#1f46c9]/20"><span className="flex items-center border-r border-[#0b1220]/10 px-3 text-sm font-semibold text-[#0b1220]/60">+91</span><input required inputMode="numeric" autoComplete="tel" maxLength={14} value={externalRegistrationForm.phone} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, phone: event.target.value.replace(/[^0-9+\-\s()]/g, '') }))} className="min-w-0 flex-1 rounded-r-xl bg-transparent px-4 text-base font-normal outline-none" placeholder="10-digit WhatsApp number" /></div></label>
             <label className="grid gap-2 text-sm font-bold text-[#0b1220]">Create password<input required type="password" minLength={6} maxLength={128} autoComplete="new-password" value={externalRegistrationForm.password} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, password: event.target.value }))} className="min-h-12 rounded-xl border border-[#0b1220]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#1f46c9] focus:ring-2 focus:ring-[#1f46c9]/20" placeholder="At least 6 characters" /></label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#0b1220]/10 bg-white px-4 py-3 text-sm leading-5 text-[#0b1220]/75 transition hover:border-[#1f46c9]/30">
+              <input required type="checkbox" checked={externalRegistrationForm.termsAccepted} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, termsAccepted: event.target.checked }))} className="mt-0.5 h-4 w-4 shrink-0 accent-[#1f46c9]" />
+              <span>I accept the Hapzo360 <a href="/terms-and-conditions" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="font-bold text-[#14308f] underline underline-offset-2 hover:text-[#1f46c9]">Terms &amp; Conditions</a>.</span>
+            </label>
             {externalRegistrationError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{externalRegistrationError}</p>}
             <p className="text-xs leading-5 text-[#0b1220]/55">Your email and WhatsApp number are saved for this event. Your password is protected with one-way hashing and is never stored as readable text.</p>
             <div className="flex flex-col-reverse gap-3 border-t border-[#0b1220]/10 pt-5 sm:flex-row sm:justify-end"><button type="button" onClick={closeExternalRegistration} disabled={externalRegistrationBusy} className="min-h-11 rounded-full border border-[#0b1220]/15 px-5 text-sm font-bold transition hover:bg-[#f0f2f5] disabled:opacity-50">Cancel</button><button type="submit" disabled={externalRegistrationBusy} className={`${btnPrimary} min-h-11 px-5 text-sm`}>{externalRegistrationBusy ? 'Saving details…' : <>Submit & continue <ArrowUpRight size={16} /></>}</button></div>

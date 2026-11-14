@@ -88,6 +88,26 @@ export async function getAdminCollection(name) {
   return (await request(`/${name}`))[name];
 }
 
+export async function getAdminJobApplications(jobId) {
+  return (await request(`/jobs/${encodeURIComponent(jobId)}/applications`)).applications;
+}
+
+export async function updateAdminPerson(id, person) {
+  return (await request(`/people/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ person }) })).person;
+}
+
+export async function deleteAdminPerson(id) {
+  return request(`/people/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function updateAdminCompany(id, company) {
+  return (await request(`/companies/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ company }) })).company;
+}
+
+export async function deleteAdminCompany(id) {
+  return request(`/companies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 export async function getAdminClip(eventId) {
   const response = await fetch(`${ADMIN_API}/events/${encodeURIComponent(eventId)}/clip`, { credentials: 'include' });
   if (!response.ok) throw new Error('Could not load the verification clip.');

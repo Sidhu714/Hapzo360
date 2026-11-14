@@ -1086,14 +1086,95 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const [rows] = await db.query('SELECT * FROM people ORDER BY created_at DESC LIMIT 100');
     res.json({ people: rows.map(personPublic) });
   });
+  router.patch('/admin/people/:id', anyAdmin, async (req, res) => {
+    const name = String(req.body?.person?.name || '').trim();
+    const email = emailOf(req.body?.person?.email);
+    const phone = phoneOf(req.body?.person?.phone);
+    if (!name || name.length > 100 || !/^\S+@\S+\.\S+$/.test(email) || email.length > 254 || !/^[6-9]\d{9}$/.test(phone)) {
+      return fail(res, 400, 'Enter a name, valid email address and 10-digit WhatsApp number.');
+    }
+    const [[existing]] = await db.execute('SELECT id FROM people WHERE id = ?', [req.params.id]);
+    if (!existing) return fail(res, 404, 'Person not found.');
+    try {
+      await db.execute('UPDATE people SET name = ?, email = ?, phone = ? WHERE id = ?', [name, email, phone, req.params.id]);
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') return fail(res, 409, 'That email address or WhatsApp number belongs to another person.');
+      throw error;
+    }
+    const [[updated]] = await db.execute('SELECT * FROM people WHERE id = ?', [req.params.id]);
+    res.json({ person: personPublic(updated) });
+  });
+  router.delete('/admin/people/:id', anyAdmin, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [[person]] = await connection.execute('SELECT id, email FROM people WHERE id = ? FOR UPDATE', [req.params.id]);
+      if (!person) { await connection.rollback(); return fail(res, 404, 'Person not found.'); }
+      await connection.execute('DELETE FROM applications WHERE person_id = ?', [person.id]);
+      await connection.execute('DELETE FROM event_registrations WHERE person_id = ?', [person.id]);
+      await connection.execute('DELETE FROM event_external_registrations WHERE person_id = ?', [person.id]);
+      await connection.execute('DELETE FROM event_registration_profiles WHERE person_id = ?', [person.id]);
+      await connection.execute("DELETE FROM sessions WHERE role = 'person' AND subject_id = ?", [person.id]);
+      if (person.email) await connection.execute('DELETE FROM people_email_codes WHERE email = ?', [person.email]);
+      await connection.execute('DELETE FROM people WHERE id = ?', [person.id]);
+      await connection.commit();
+      res.json({ ok: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally { connection.release(); }
+  });
   router.get('/admin/companies', anyAdmin, async (req, res) => {
     const [rows] = await db.query('SELECT * FROM companies ORDER BY created_at DESC LIMIT 100');
     res.json({ companies: rows.map(companyPublic) });
   });
+  router.patch('/admin/companies/:id', anyAdmin, async (req, res) => {
+    const companyName = String(req.body?.company?.companyName || '').trim();
+    const email = emailOf(req.body?.company?.email);
+    const phone = phoneOf(req.body?.company?.phone);
+    if (!companyName || companyName.length > 120 || !/^\S+@\S+\.\S+$/.test(email) || email.length > 254 || !/^[6-9]\d{9}$/.test(phone)) {
+      return fail(res, 400, 'Enter a company name, valid email address and 10-digit WhatsApp number.');
+    }
+    const [[existing]] = await db.execute('SELECT * FROM companies WHERE id = ?', [req.params.id]);
+    if (!existing) return fail(res, 404, 'Company not found.');
+    const profile = { ...parseJson(existing.profile_json), companyName, phone };
+    try {
+      await db.execute('UPDATE companies SET company_name = ?, email = ?, phone = ?, profile_json = ? WHERE id = ?', [companyName, email, phone, JSON.stringify(profile), req.params.id]);
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') return fail(res, 409, 'That email address belongs to another company.');
+      throw error;
+    }
+    res.json({ company: companyPublic(await companyById(db, req.params.id)) });
+  });
+  router.delete('/admin/companies/:id', anyAdmin, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [[company]] = await connection.execute('SELECT id, email FROM companies WHERE id = ? FOR UPDATE', [req.params.id]);
+      if (!company) { await connection.rollback(); return fail(res, 404, 'Company not found.'); }
+      await connection.execute('UPDATE jobs SET deleted_at = COALESCE(deleted_at, UTC_TIMESTAMP(3)), company_id = NULL WHERE company_id = ?', [company.id]);
+      await connection.execute('UPDATE events SET deleted_at = COALESCE(deleted_at, UTC_TIMESTAMP(3)), company_id = NULL WHERE company_id = ?', [company.id]);
+      await connection.execute("DELETE FROM sessions WHERE role = 'company' AND subject_id = ?", [company.id]);
+      await connection.execute('DELETE FROM payments WHERE company_id = ?', [company.id]);
+      await connection.execute('DELETE FROM company_email_codes WHERE email = ?', [company.email]);
+      await connection.execute('DELETE FROM companies WHERE id = ?', [company.id]);
+      await connection.commit();
+      res.json({ ok: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally { connection.release(); }
+  });
   router.get('/admin/jobs', anyAdmin, async (req, res) => {
-    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id WHERE j.deleted_at IS NULL ORDER BY j.created_at DESC LIMIT 100');
+    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name, (SELECT COUNT(*) FROM applications application WHERE application.job_id = j.id) AS application_count FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id WHERE j.deleted_at IS NULL ORDER BY j.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'job', rows.map((row) => row.id));
-    res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), companyName: row.company_name || parseJson(row.data_json).companyName || '', reviewHistory: history.get(row.id) || [] })) });
+    res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), companyName: row.company_name || parseJson(row.data_json).companyName || '', applicationCount: Number(row.application_count || 0), reviewHistory: history.get(row.id) || [] })) });
+  });
+  router.get('/admin/jobs/:id/applications', anyAdmin, async (req, res) => {
+    const [[job]] = await db.execute('SELECT id FROM jobs WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!job) return fail(res, 404, 'Opening not found.');
+    const [rows] = await db.execute('SELECT application.id, application.created_at, person.name, person.email, person.phone FROM applications application INNER JOIN people person ON person.id = application.person_id WHERE application.job_id = ? ORDER BY application.created_at DESC', [job.id]);
+    res.json({ applications: rows.map((row) => ({ id: row.id, name: row.name || '', email: row.email || '', phone: row.phone || '', appliedAt: iso(row.created_at) })) });
   });
   router.get('/admin/events', anyAdmin, async (req, res) => {
     const [rows] = await db.query('SELECT e.*, a.username AS creator_username, co.company_name, (ec.event_id IS NOT NULL) AS clip_available FROM events e LEFT JOIN admin_users a ON a.id = e.created_by_admin LEFT JOIN companies co ON co.id = e.company_id LEFT JOIN event_clips ec ON ec.event_id = e.id WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 100');

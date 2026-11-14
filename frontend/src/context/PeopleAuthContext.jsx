@@ -199,7 +199,7 @@ export function PeopleAuthForm({ initialMode, unified = false }) {
   };
 
   return (
-    <AuthPageShell kind="people" title={heading} description={description} showAudienceTabs={unified}>
+    <AuthPageShell kind="people" title={heading} description={description} showAudienceTabs={false}>
       <h2 className="mb-5 text-2xl font-extrabold text-[#20372a]">{googleCredential ? 'Finish your Google sign-in' : mode === 'signup' ? 'Create your account' : 'Welcome back'}</h2>
       <p className="mb-5 text-sm text-stone-600">{mode === 'signup' ? 'Already have an account?' : 'New to Hapzo360?'} <button type="button" onClick={() => switchMode(mode === 'signup' ? 'signin' : 'signup')} className="font-bold text-[#315844] underline underline-offset-2">{mode === 'signup' ? 'Sign in' : 'Sign up'}</button></p>
 
