@@ -518,7 +518,6 @@ export default function Happening() {
   const [externalRegistrationForm, setExternalRegistrationForm] = useState(EMPTY_EXTERNAL_REGISTRATION);
   const [externalRegistrationBusy, setExternalRegistrationBusy] = useState(false);
   const [externalRegistrationError, setExternalRegistrationError] = useState('');
-  const [eventRegistrationSessionReady, setEventRegistrationSessionReady] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
@@ -571,10 +570,6 @@ export default function Happening() {
     return listMyCompanyEvents().then(setMyCompanyEvents).catch((error) => setToast(error.message || 'Could not load your happenings.'));
   }, [company?.id]);
   useEffect(() => { refreshMyCompanyEvents(); }, [refreshMyCompanyEvents]);
-
-  useEffect(() => {
-    setEventRegistrationSessionReady(false);
-  }, [person?.id]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -971,20 +966,18 @@ export default function Happening() {
       setToast('The organiser’s registration form opened in a new tab.');
     } catch (error) {
       if (registrationWindow && !registrationWindow.closed) registrationWindow.close();
-      setToast(error.message || 'Could not continue to the organiser’s registration form.');
+      if (error.status === 401 || error.status === 409) {
+        openExternalRegistration(event);
+      } else {
+        setToast(error.message || 'Could not continue to the organiser’s registration form.');
+      }
     } finally { setExternalRegistrationBusy(false); }
-  }, [recordExternalRegistration]);
+  }, [recordExternalRegistration, openExternalRegistration]);
   const startExternalRegistration = useCallback((event) => {
     if (company) return;
-    requestPeopleAuth({
-      purpose: 'eventRegistration',
-      action: { type: 'externalEventRegistration', eventId: eventIdentity(event), eventTitle: event.title || event.name },
-      onAuthenticated: () => {
-        if (eventRegistrationSessionReady) continueToExternalRegistration(event);
-        else openExternalRegistration(event);
-      },
-    });
-  }, [company, requestPeopleAuth, eventRegistrationSessionReady, continueToExternalRegistration, openExternalRegistration]);
+    if (person) continueToExternalRegistration(event);
+    else openExternalRegistration(event);
+  }, [company, person, continueToExternalRegistration, openExternalRegistration]);
   const submitExternalRegistration = async (event) => {
     event.preventDefault();
     const email = externalRegistrationForm.email.trim().toLowerCase();
@@ -1004,7 +997,6 @@ export default function Happening() {
       else window.open(result.registrationUrl, '_blank', 'noopener,noreferrer');
       const eventId = eventIdentity(externalRegistrationEvent);
       recordExternalRegistration(eventId);
-      setEventRegistrationSessionReady(true);
       setExternalRegistrationEvent(null);
       setToast('Your details were saved. The organiser’s registration form opened in a new tab.');
     } catch (error) {
@@ -1146,13 +1138,7 @@ export default function Happening() {
       const event = allEvents.find((item) => eventIdentity(item) === action.eventId) || { id: action.eventId, title: action.eventTitle };
       registerForEvent(event);
     }
-    if (action.type === 'externalEventRegistration' && person && !company) {
-      resumedAuthActionRef.current = action;
-      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
-      const event = allEvents.find((item) => eventIdentity(item) === action.eventId) || { id: action.eventId, title: action.eventTitle };
-      openExternalRegistration(event);
-    }
-  }, [location.state, location.pathname, location.search, company, person, allEvents, navigate, openAddForCompany, registerForEvent, openExternalRegistration]);
+  }, [location.state, location.pathname, location.search, company, person, allEvents, navigate, openAddForCompany, registerForEvent]);
 
   const scrollToEvents = () => document.getElementById('events-list')?.scrollIntoView({ behavior: 'smooth' });
   const dayLabel = dayFilter ? formatDate(dayFilter) : '';

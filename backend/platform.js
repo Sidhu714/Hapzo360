@@ -638,7 +638,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const [rows] = await db.execute('SELECT event_id, event_title, created_at FROM event_registrations WHERE person_id = ? ORDER BY created_at DESC', [req.accountId]);
     res.json({ registrations: rows.map((row) => ({ eventId: row.event_id, eventTitle: row.event_title, registeredAt: iso(row.created_at) })) });
   });
-  router.post('/events/:id/external-registration', personOnly, async (req, res) => {
+  router.post('/events/:id/external-registration', async (req, res) => {
     const attendeeEmail = String(req.body?.email || '').trim().toLowerCase().slice(0, 254);
     const attendeePhone = phoneOf(req.body?.phone);
     const password = String(req.body?.password || '');
@@ -650,9 +650,12 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const eventData = parseJson(event.data_json);
     const registrationUrl = registrationUrlOf(eventData.registrationUrl);
     if (!registrationUrl) return fail(res, 400, 'The organiser has not added a registration link for this event.');
+    const personId = await findSession(db, req, 'person');
     const passwordHash = hashPassword(password);
-    await db.execute('INSERT INTO event_registration_profiles (person_id, email, phone, password_hash) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), phone = VALUES(phone), password_hash = VALUES(password_hash), updated_at = CURRENT_TIMESTAMP(3)', [req.accountId, attendeeEmail, attendeePhone, passwordHash]);
-    await db.execute('INSERT INTO event_external_registrations (id, event_id, event_key, event_title, person_id, attendee_email, attendee_phone, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE person_id = VALUES(person_id), attendee_phone = VALUES(attendee_phone), password_hash = VALUES(password_hash), created_at = CURRENT_TIMESTAMP(3)', [randomUUID(), event.id, tokenHash(event.id), String(eventData.title || eventData.name || 'Event').slice(0, 255), req.accountId, attendeeEmail, attendeePhone, passwordHash]);
+    if (personId) {
+      await db.execute('INSERT INTO event_registration_profiles (person_id, email, phone, password_hash) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), phone = VALUES(phone), password_hash = VALUES(password_hash), updated_at = CURRENT_TIMESTAMP(3)', [personId, attendeeEmail, attendeePhone, passwordHash]);
+    }
+    await db.execute('INSERT INTO event_external_registrations (id, event_id, event_key, event_title, person_id, attendee_email, attendee_phone, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE person_id = VALUES(person_id), attendee_phone = VALUES(attendee_phone), password_hash = VALUES(password_hash), created_at = CURRENT_TIMESTAMP(3)', [randomUUID(), event.id, tokenHash(event.id), String(eventData.title || eventData.name || 'Event').slice(0, 255), personId, attendeeEmail, attendeePhone, passwordHash]);
     res.status(201).json({ ok: true, registrationUrl });
   });
   router.post('/events/:id/external-registration/continue', personOnly, async (req, res) => {
