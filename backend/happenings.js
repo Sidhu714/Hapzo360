@@ -410,6 +410,25 @@ function imageUrl(value) {
   return "";
 }
 
+function attributeValue(tag, name) {
+  const match = String(tag).match(new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'i'));
+  return match ? decodeEntities(match[2]).trim() : "";
+}
+
+function openGraphImage(html, baseUrl) {
+  const tags = String(html).match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of tags) {
+    const property = attributeValue(tag, 'property').toLowerCase();
+    const name = attributeValue(tag, 'name').toLowerCase();
+    if (property !== 'og:image' && name !== 'twitter:image') continue;
+    const value = attributeValue(tag, 'content');
+    if (!value) continue;
+    try { return new URL(value, baseUrl).href; }
+    catch { /* Ignore malformed provider metadata. */ }
+  }
+  return "";
+}
+
 function formatAddress(address) {
   if (typeof address === "string") return address.trim();
   if (!address || typeof address !== "object") return "";
@@ -435,7 +454,7 @@ function priceOf(offers) {
   return cur === "INR" || !cur ? `₹${price}` : `${cur} ${price}`;
 }
 
-function normalizeEvent(ev, pageUrl, source) {
+function normalizeEvent(ev, pageUrl, source, fallbackImage = "") {
   if (/cancel|postpone/i.test(String(ev.eventStatus || ""))) return null;
 
   const start = toIST(ev.startDate);
@@ -470,7 +489,7 @@ function normalizeEvent(ev, pageUrl, source) {
     }
   }
 
-  const image = imageUrl(ev.image);
+  const image = imageUrl(ev.image) || fallbackImage;
 
   const title = stripTags(ev.name);
   const description = stripTags(ev.description || "").slice(0, 600);
@@ -499,13 +518,20 @@ function normalizeEvent(ev, pageUrl, source) {
 }
 
 function dedupe(events) {
-  const seen = new Set();
-  return events.filter((e) => {
+  const seen = new Map();
+  const result = [];
+  for (const event of events) {
+    const e = event;
     const key = `${e.url}|${e.title.toLowerCase()}|${e.date}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const previous = seen.get(key);
+    if (previous === undefined) {
+      seen.set(key, result.length);
+      result.push(e);
+    } else if (!result[previous].image && e.image) {
+      result[previous] = e;
+    }
+  }
+  return result;
 }
 
 const byDate = (a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`);
@@ -546,14 +572,15 @@ async function crawlSource(source, slug) {
   }
 
   const events = listingEvents
-    .map((ev) => normalizeEvent(ev, listingUrl, source))
+    .map((ev) => normalizeEvent(ev, listingUrl, source, openGraphImage(html, listingUrl)))
     .filter(Boolean);
 
   for (const url of [...eventUrls].slice(0, MAX_EVENT_PAGES)) {
     try {
       const page = await politeGet(url);
+      const fallbackImage = openGraphImage(page, url);
       for (const ev of extractLdEvents(page)) {
-        const normalized = normalizeEvent(ev, url, source);
+        const normalized = normalizeEvent(ev, url, source, fallbackImage);
         if (normalized) events.push(normalized);
       }
     } catch (error) {
@@ -573,6 +600,7 @@ async function crawlSource(source, slug) {
 const store = new Map(); // slug -> { at, slug, missing, events }
 const inflight = new Map(); // slug -> Promise
 const lastAttempt = new Map(); // slug -> timestamp
+const CACHE_VERSION = 2;
 
 const cacheFile = (slug) => path.join(CACHE_DIR, `events-${slug}.json`);
 
@@ -624,6 +652,7 @@ function refresh(slug) {
     const entry = {
       at: Date.now(),
       slug,
+      version: CACHE_VERSION,
       missing: !anyPage,
       events: dedupe(events).sort(byDate),
     };
@@ -641,12 +670,15 @@ function refresh(slug) {
 async function getCity(slug) {
   let entry = store.get(slug) || (await loadFromDisk(slug));
 
-  const stale = !entry || Date.now() - entry.at > REFRESH_MS;
+  const stale = !entry || entry.version !== CACHE_VERSION || Date.now() - entry.at > REFRESH_MS;
   const canTry = Date.now() - (lastAttempt.get(slug) || 0) > RETRY_MS;
+  const shouldVerifyEmpty = Boolean(entry && entry.events.length === 0 && canTry);
 
-  if (stale && (canTry || !entry)) {
+  if ((stale && (canTry || !entry)) || shouldVerifyEmpty) {
     const job = refresh(slug);
-    if (!entry) entry = await job;
+    // Never silently treat an old empty cache as a successful online search.
+    // Waiting here lets the route report a blocked/unavailable source correctly.
+    if (!entry || entry.events.length === 0) entry = await job;
     else job.catch((e) => console.warn(`[happenings] background refresh ${slug} failed: ${e.message}`));
   }
   return entry;

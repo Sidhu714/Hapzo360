@@ -892,6 +892,7 @@ import express from "express";
 import "dotenv/config";
 import cors from "cors";
 import dns from "node:dns";
+import { createHash } from "node:crypto";
 import happenings, { warmHappenings } from "./happenings.js";
 import { createDatabase, initializeDatabase } from "./db.js";
 import { platformRoutes, seedSuperAdmin, seedReadOnlySuperAdmin } from "./platform.js";
@@ -902,7 +903,7 @@ dns.setDefaultResultOrder("ipv4first");
 
 // Government agricultural mandi price API
 const DATA_GOV_IN_API_KEY = process.env.DATA_GOV_IN_API_KEY;
-const AGMARKNET_RESOURCE_ID = process.env.AGMARKNET_RESOURCE_ID;
+const AGMARKNET_RESOURCE_ID = process.env.AGMARKNET_RESOURCE_ID || "9ef84268-d588-465a-a308-a864a43d0070";
 
 // NewsData.io trends API
 const NEWS_DATA_API_KEY = process.env.NEWSDATA_API_KEY;
@@ -950,7 +951,7 @@ const FEEDS = {
 };
 
 if (!NEWS_DATA_API_KEY) {
-  console.warn("[trends] NEWSDATA_API_KEY is missing; trend requests will be unavailable.");
+  console.info("[trends] NEWSDATA_API_KEY is missing; using publisher RSS fallbacks.");
 }
 
 // --------------------------------------------------
@@ -1025,6 +1026,22 @@ async function fetchJson(url, headers = {}) {
         ? `${error.message} (${errorCode})`
         : error.message;
     throw new Error(detail || "Upstream request failed", { cause: error });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchText(url, headers = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { headers, signal: controller.signal });
+    if (!response.ok) throw new Error(`Upstream HTTP ${response.status}`);
+    return await response.text();
+  } catch (error) {
+    const errorCode = error?.cause?.code || error?.code;
+    const detail = controller.signal.aborted ? `Upstream request timed out after ${TIMEOUT_MS}ms` : errorCode ? `${error.message} (${errorCode})` : error.message;
+    throw new Error(detail || 'Upstream request failed', { cause: error });
   } finally {
     clearTimeout(timeout);
   }
@@ -1318,7 +1335,81 @@ function parseNewsDate(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+const RSS_QUERIES = {
+  manufacturing: 'manufacturing India',
+  garments: 'garments textile India',
+  technology: 'technology India',
+  logistics: 'logistics supply chain India',
+};
+
+const PUBLISHER_RSS_FEEDS = {
+  manufacturing: { url: 'https://www.thehindu.com/business/Industry/feeder/default.rss', source: 'The Hindu' },
+  garments: { url: 'https://www.livemint.com/rss/industry', source: 'Mint' },
+  technology: { url: 'https://www.thehindu.com/sci-tech/technology/feeder/default.rss', source: 'The Hindu' },
+  logistics: { url: 'https://www.livemint.com/rss/industry', source: 'Mint' },
+};
+
+function decodeXml(value = '') {
+  return String(value).replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code))).trim();
+}
+
+function rssValue(item, tag) {
+  const match = item.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return match ? decodeXml(match[1]) : '';
+}
+
+function rssAttribute(tag, name) {
+  const match = tag.match(new RegExp(`\\b${name}=["']([^"']+)["']`, 'i'));
+  return match ? decodeXml(match[1]) : '';
+}
+
+function rssImage(item) {
+  const media = item.match(/<media:(?:content|thumbnail)\b[^>]*>/i)?.[0];
+  return media ? rssAttribute(media, 'url') : '';
+}
+
+async function fetchPublisherRssFeed(domain) {
+  const feed = PUBLISHER_RSS_FEEDS[domain];
+  if (!feed) return fetchGoogleNewsFeed(domain);
+  const xml = await fetchText(feed.url, { 'User-Agent': 'Hapzo360/1.0' });
+  const articles = [];
+  for (const match of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+    const item = match[1];
+    const link = rssValue(item, 'link');
+    const title = rssValue(item, 'title');
+    if (!link || !title) continue;
+    const published = new Date(rssValue(item, 'pubDate'));
+    articles.push({ id: `publisher-rss-${createHash('sha256').update(link).digest('hex').slice(0, 20)}`, domain, title, description: rssValue(item, 'description').replace(/<[^>]+>/g, '').trim(), link, image: rssImage(item) || null, source: feed.source, publishedAt: Number.isNaN(published.getTime()) ? null : published.toISOString() });
+  }
+  if (!articles.length) throw new Error(`${feed.source} RSS returned no usable articles`);
+  return articles.slice(0, 10);
+}
+
+async function fetchGoogleNewsFeed(domain) {
+  const query = RSS_QUERIES[domain] || 'India business';
+  const params = new URLSearchParams({ q: `${query} when:7d`, hl: 'en-IN', gl: 'IN', ceid: 'IN:en' });
+  const xml = await fetchText(`https://news.google.com/rss/search?${params}`, { 'User-Agent': 'Hapzo360/1.0' });
+  const articles = [];
+  for (const match of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+    const item = match[1];
+    const link = rssValue(item, 'link');
+    const title = rssValue(item, 'title');
+    if (!link || !title) continue;
+    const published = new Date(rssValue(item, 'pubDate'));
+    articles.push({ id: `google-rss-${createHash('sha256').update(link).digest('hex').slice(0, 20)}`, domain, title, description: rssValue(item, 'description').replace(/<[^>]+>/g, '').trim(), link, image: null, source: rssValue(item, 'source') || 'Google News', publishedAt: Number.isNaN(published.getTime()) ? null : published.toISOString() });
+  }
+  if (!articles.length) throw new Error('Google News RSS returned no usable articles');
+  return articles.slice(0, 10);
+}
+
 async function fetchTrendFeed(domain) {
+  if (!NEWS_DATA_API_KEY) {
+    try { return await fetchPublisherRssFeed(domain); }
+    catch (error) {
+      console.warn(`[trends] ${domain} publisher RSS failed; using Google News RSS:`, error.message);
+      return fetchGoogleNewsFeed(domain);
+    }
+  }
   const params = new URLSearchParams({
     apikey: NEWS_DATA_API_KEY,
     country: NEWS_COUNTRY,
@@ -1376,7 +1467,7 @@ app.get("/api/health", (_req, res) => {
     features: {
       prices: Boolean(DATA_GOV_IN_API_KEY && AGMARKNET_RESOURCE_ID),
       yarn: Boolean(YARN_PRICES_URL),
-      trends: Boolean(NEWS_DATA_API_KEY),
+      trends: true,
       happenings: true,
     },
   });
@@ -1400,6 +1491,14 @@ app.get("/api/prices", async (req, res) => {
   if (!["all", "wholesale", "retail"].includes(priceType)) {
     return res.status(400).json({
       error: "priceType must be all, wholesale, or retail",
+    });
+  }
+
+  if (!DATA_GOV_IN_API_KEY || !AGMARKNET_RESOURCE_ID) {
+    return res.status(503).json({
+      error: 'Price provider is not configured',
+      message: 'Set DATA_GOV_IN_API_KEY in backend/.env to load official mandi prices. AGMARKNET_RESOURCE_ID already has a project default and can be overridden if needed.',
+      configured: { dataGovApiKey: Boolean(DATA_GOV_IN_API_KEY), agmarknetResourceId: Boolean(AGMARKNET_RESOURCE_ID), yarnProvider: Boolean(YARN_PRICES_URL) },
     });
   }
 
@@ -1570,18 +1669,29 @@ async function start() {
     const trendEntries = [...cache.entries()].filter(([key]) => key.startsWith('trend-'));
     const trendArticles = trendEntries.flatMap(([, value]) => value.data || []);
     const uniqueNews = new Map(trendArticles.map((article) => [article.link || article.id, article]));
+    const uniqueNewsForDomains = (domains) => {
+      const articles = trendEntries
+        .filter(([key]) => domains.includes(key.replace(/^trend-/, '')))
+        .flatMap(([, value]) => value.data || []);
+      return new Map(articles.map((article) => [article.link || article.id, article])).size;
+    };
     const agmarknetCache = cache.get('agmarknet');
     const yarnCache = cache.get('yarn');
     return {
       news: uniqueNews.size,
       newsLoaded: trendEntries.length > 0,
+      newsProvider: NEWS_DATA_API_KEY ? 'NewsData.io' : 'Publisher RSS feeds',
+      newsByDomain: {
+        trends: uniqueNewsForDomains(['manufacturing', 'garments', 'logistics']),
+        technology: uniqueNewsForDomains(['technology']),
+      },
       newsPublishers: [...new Set([...uniqueNews.values()].map((article) => article.source).filter(Boolean))].sort(),
       agmarknet: agmarknetCache?.data?.length || 0,
       agmarknetLoaded: Boolean(agmarknetCache),
       yarn: yarnCache?.data?.length || 0,
       yarnLoaded: Boolean(yarnCache),
       yarnEnabled: Boolean(YARN_PRICES_URL),
-      newsEnabled: Boolean(NEWS_DATA_API_KEY),
+      newsEnabled: true,
       agmarknetEnabled: Boolean(DATA_GOV_IN_API_KEY && AGMARKNET_RESOURCE_ID),
       eventbriteEnabled: process.env.CRAWL_EVENTBRITE === '1',
     };

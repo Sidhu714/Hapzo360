@@ -129,11 +129,15 @@ export async function initializeDatabase(db) {
   if (adminEmailColumns[0]?.Null === 'NO') await db.query('ALTER TABLE admin_users MODIFY COLUMN email VARCHAR(254) NULL');
   const [adminRoleColumns] = await db.query("SHOW COLUMNS FROM admin_users LIKE 'role'");
   if (!adminRoleColumns.length) await db.query("ALTER TABLE admin_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash");
-  for (const [oldUsername, newUsername] of [['admin1', 'Raghul Gowtham'], ['admin2', 'Navaneethan'], ['sadmin', 'Lordminds']]) {
+  for (const [oldUsername, newUsername] of [['admin1', 'Ragul Gowtham'], ['admin2', 'Navaneethan'], ['sadmin', 'Lordminds']]) {
     const [[oldAccount]] = await db.execute('SELECT id FROM admin_users WHERE username = ? LIMIT 1', [oldUsername]);
     if (!oldAccount) continue;
     const [[nameInUse]] = await db.execute('SELECT id FROM admin_users WHERE username = ? LIMIT 1', [newUsername]);
     if (!nameInUse) await db.execute('UPDATE admin_users SET username = ? WHERE id = ?', [newUsername, oldAccount.id]);
+  }
+  const [[ragulAdmin]] = await db.execute('SELECT id FROM admin_users WHERE username = ? LIMIT 1', ['Ragul Gowtham']);
+  if (ragulAdmin) {
+    await db.execute("UPDATE moderation_reviews SET reviewer_username = ? WHERE reviewer_id = ? OR reviewer_username IN ('admin1', 'Raghul Gowtham')", ['Ragul Gowtham', ragulAdmin.id]);
   }
   for (const [table, column, definition] of [
     ['jobs', 'reviewed_at', 'DATETIME(3) NULL'],

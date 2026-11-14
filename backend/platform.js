@@ -152,6 +152,54 @@ function jobOwner(row) {
   return { ...parseJson(row.data_json), id: row.id, companyId: row.company_id, createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, createdAt: iso(row.created_at), expiresAt: iso(row.expires_at), renewedAt: iso(row.renewed_at), reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '' };
 }
 
+function eventOwner(row) {
+  return { ...parseJson(row.data_json), id: row.id, companyId: row.company_id, createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, createdAt: iso(row.created_at), reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '' };
+}
+
+function updatedEventData(input, current, { allowOrganizer = false } = {}) {
+  const date = new Date(input?.date);
+  const title = String(input?.title || '').trim().slice(0, 120);
+  const venue = String(input?.venue || '').trim().slice(0, 200);
+  if (!title || !venue || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() - 86_400_000) {
+    throw Object.assign(new Error('Add an event name, venue and a current or future date.'), { status: 400 });
+  }
+  const contactPhone = input?.contactPhone ? phoneOf(input.contactPhone) : '';
+  if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) throw Object.assign(new Error('Enter a valid 10-digit contact phone number.'), { status: 400 });
+  const image = String(input?.image || '').trim().slice(0, 2048);
+  if (image && !/^https:\/\//i.test(image) && !image.startsWith('data:image/') && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) throw Object.assign(new Error('Use an HTTPS image URL or a valid uploaded image.'), { status: 400 });
+  return {
+    ...current,
+    title, venue, date: date.toISOString(), contactPhone, image,
+    location: String(input?.location || '').trim().slice(0, 120), time: String(input?.time || '').trim().slice(0, 20),
+    category: String(input?.category || 'Community').trim().slice(0, 80), sector: String(input?.sector || '').trim().slice(0, 80),
+    specialty: String(input?.specialty || '').trim().slice(0, 80), description: String(input?.description || '').trim().slice(0, 1200),
+    ...(allowOrganizer ? { organizer: String(input?.organizer || '').trim().slice(0, 120) || current.organizer || '' } : {}),
+  };
+}
+
+function updatedJobData(input, current) {
+  const title = String(input?.title || '').trim().slice(0, 120);
+  const companyName = String(input?.companyName || current.companyName || '').trim().slice(0, 120);
+  const location = String(input?.location || '').trim().slice(0, 120);
+  const description = String(input?.description || '').trim().slice(0, 5000);
+  if (!title || !companyName || !location || !description) throw Object.assign(new Error('Add an opening title, company name, location and description.'), { status: 400 });
+  const contactName = String(input?.contactName || '').trim().slice(0, 100);
+  const contactPhone = input?.contactPhone ? phoneOf(input.contactPhone) : '';
+  const contactEmail = emailOf(input?.contactEmail);
+  if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) throw Object.assign(new Error('Enter a valid 10-digit contact phone number.'), { status: 400 });
+  if (contactEmail && (!/^\S+@\S+\.\S+$/.test(contactEmail) || contactEmail.length > 254)) throw Object.assign(new Error('Enter a valid contact email.'), { status: 400 });
+  const positions = Array.isArray(current.positions) && current.positions.length
+    ? current.positions.map((position, index) => index ? position : { ...position, title, remarks: description, contactName: contactName || position.contactName || '', contactPhone: contactPhone || position.contactPhone || '' })
+    : [{ title, experiences: [], remarks: description, contactName, contactPhone }];
+  return {
+    ...current, title, companyName, location, description, positions,
+    requirements: String(input?.requirements || '').trim().slice(0, 3000),
+    experience: String(input?.experience || '').trim().slice(0, 100), salary: String(input?.salary || '').trim().slice(0, 100),
+    contactName, contactPhone, contactEmail,
+    jobType: ['full-time', 'part-time', 'contract'].includes(input?.jobType) ? input.jobType : (current.jobType || 'full-time'),
+  };
+}
+
 async function reviewHistory(db, contentType, ids) {
   if (!ids.length) return new Map();
   const [rows] = await db.query(`SELECT content_id, decision, reviewer_username, reason, reviewed_at
@@ -542,6 +590,24 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     await db.execute("INSERT INTO events (id, company_id, data_json, status) VALUES (?, ?, ?, 'pending')", [id, req.accountId, JSON.stringify(data)]);
     res.status(201).json({ event: { ...data, status: 'pending' } });
   });
+  router.get('/events/mine', companyOnly, async (req, res) => {
+    const [rows] = await db.execute('SELECT * FROM events WHERE company_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100', [req.accountId]);
+    res.json({ events: rows.map(eventOwner) });
+  });
+  router.patch('/events/:id', companyOnly, async (req, res) => {
+    const [[event]] = await db.execute('SELECT * FROM events WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [req.params.id, req.accountId]);
+    if (!event) return fail(res, 404, 'This happening was not found for your company.');
+    let data;
+    try { data = updatedEventData(req.body?.event, parseJson(event.data_json)); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
+    await db.execute("UPDATE events SET data_json = ?, status = 'pending', reviewed_at = NULL, reviewed_by = NULL, rejection_reason = NULL WHERE id = ?", [JSON.stringify(data), event.id]);
+    res.json({ event: { ...eventOwner(event), ...data, status: 'pending', reviewedAt: null, rejectionReason: '' } });
+  });
+  router.delete('/events/:id', companyOnly, async (req, res) => {
+    const [result] = await db.execute('UPDATE events SET deleted_at = UTC_TIMESTAMP(3) WHERE id = ? AND company_id = ? AND deleted_at IS NULL', [req.params.id, req.accountId]);
+    if (!result.affectedRows) return fail(res, 404, 'This happening was not found for your company.');
+    res.json({ ok: true });
+  });
   router.put('/events/:id/clip', companyOnly, express.raw({ type: 'application/octet-stream', limit: '8mb' }), async (req, res) => {
     const [[event]] = await db.execute('SELECT id FROM events WHERE id = ? AND company_id = ?', [req.params.id, req.accountId]);
     if (!event) return fail(res, 404, 'Event not found for this company.');
@@ -710,7 +776,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     }), { posted: 0, approved: 0, rejected: 0 });
     res.json({ detailsVersion: 1, admins, totals: { ...totals, posted: publishedItems.length }, publishedItems, submissions });
   });
-  router.post('/admin/jobs', adminOnly, async (req, res) => {
+  router.post('/admin/jobs', anyAdmin, async (req, res) => {
     const input = req.body || {};
     const entries = Array.isArray(input.jobs) ? input.jobs : [input];
     if (!entries.length || entries.length > 10) return fail(res, 400, 'Add between 1 and 10 positions.');
@@ -760,7 +826,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
   });
-  router.post('/admin/events', adminOnly, async (req, res) => {
+  router.post('/admin/events', anyAdmin, async (req, res) => {
     const input = req.body || {};
     const title = String(input.title || '').trim().slice(0, 120);
     const organizer = String(input.organizer || '').trim().slice(0, 120);
@@ -792,17 +858,35 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
   });
-  router.delete('/admin/jobs/:id', adminOnly, async (req, res) => {
-    const [result] = await db.execute('UPDATE jobs SET deleted_at = UTC_TIMESTAMP(3) WHERE id = ? AND created_by_admin IS NOT NULL AND deleted_at IS NULL', [req.params.id]);
-    if (!result.affectedRows) return fail(res, 404, 'Admin-created opening not found.');
+  router.delete('/admin/jobs/:id', anyAdmin, async (req, res) => {
+    const [result] = await db.execute('UPDATE jobs SET deleted_at = UTC_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!result.affectedRows) return fail(res, 404, 'Opening not found.');
     res.json({ ok: true });
   });
-  router.delete('/admin/events/:id', adminOnly, async (req, res) => {
-    const [result] = await db.execute('UPDATE events SET deleted_at = UTC_TIMESTAMP(3) WHERE id = ? AND created_by_admin IS NOT NULL AND deleted_at IS NULL', [req.params.id]);
-    if (!result.affectedRows) return fail(res, 404, 'Admin-created happening not found.');
+  router.patch('/admin/jobs/:id', anyAdmin, async (req, res) => {
+    const [[job]] = await db.execute('SELECT * FROM jobs WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!job) return fail(res, 404, 'Opening not found.');
+    let data;
+    try { data = updatedJobData(req.body?.job, parseJson(job.data_json)); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
+    await db.execute('UPDATE jobs SET data_json = ? WHERE id = ?', [JSON.stringify(data), job.id]);
+    res.json({ job: { ...jobOwner(job), ...data } });
+  });
+  router.patch('/admin/events/:id', anyAdmin, async (req, res) => {
+    const [[event]] = await db.execute('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!event) return fail(res, 404, 'Happening not found.');
+    let data;
+    try { data = updatedEventData(req.body?.event, parseJson(event.data_json), { allowOrganizer: true }); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
+    await db.execute('UPDATE events SET data_json = ? WHERE id = ?', [JSON.stringify(data), event.id]);
+    res.json({ event: { ...eventOwner(event), ...data } });
+  });
+  router.delete('/admin/events/:id', anyAdmin, async (req, res) => {
+    const [result] = await db.execute('UPDATE events SET deleted_at = UTC_TIMESTAMP(3) WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    if (!result.affectedRows) return fail(res, 404, 'Happening not found.');
     res.json({ ok: true });
   });
-  router.get('/admin/overview', adminOnly, async (req, res) => {
+  router.get('/admin/overview', anyAdmin, async (req, res) => {
     const [[people]] = await db.query('SELECT COUNT(*) AS count FROM people');
     const [[companies]] = await db.query('SELECT COUNT(*) AS count FROM companies');
     const [[jobs]] = await db.query('SELECT COUNT(*) AS count FROM jobs WHERE deleted_at IS NULL');
@@ -838,7 +922,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const sourceStats = [
       { name: 'Meetup', area: 'Happenings', method: 'Website crawl', count: meetupCount, enabled: true },
       { name: 'Eventbrite', area: 'Happenings', method: 'Website crawl', count: eventbriteCount, enabled: Boolean(external.eventbriteEnabled) },
-      { name: 'NewsData.io', area: 'Trends & Technologies', method: 'News API', count: Number(external.news || 0), enabled: Boolean(external.newsEnabled), loaded: Boolean(external.newsLoaded) },
+      { name: external.newsProvider || 'NewsData.io', area: 'Trends & Technologies', method: external.newsProvider === 'Publisher RSS feeds' ? 'RSS feed' : 'News API', count: Number(external.news || 0), enabled: Boolean(external.newsEnabled), loaded: Boolean(external.newsLoaded) },
       { name: 'AGMARKNET / data.gov.in', area: 'Price List', method: 'Government API', count: Number(external.agmarknet || 0), enabled: Boolean(external.agmarknetEnabled), loaded: Boolean(external.agmarknetLoaded) },
     ];
     if (external.yarnEnabled) sourceStats.push({ name: 'Yarn provider', area: 'Price List', method: 'Provider API', count: Number(external.yarn || 0), enabled: true, loaded: Boolean(external.yarnLoaded) });
@@ -851,17 +935,29 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
       const day = new Date(Date.now() - (6 - index) * 86_400_000).toISOString().slice(0, 10);
       return { day, people: activity.people[day] || 0, companies: activity.companies[day] || 0, jobs: activity.jobs[day] || 0, events: activity.events[day] || 0 };
     });
+    const jobModeration = stateCounts(jobStates, ['active', 'expired']);
+    const eventModeration = stateCounts(eventStates, ['approved']);
+    const trendsPosted = Number(storyCounts.trends || 0);
+    const technologyPosted = Number(storyCounts.technology || 0);
+    const trendsInternet = Number(external.newsByDomain?.trends || 0);
+    const technologyInternet = Number(external.newsByDomain?.technology || 0);
     res.json({ people: people.count, companies: companies.count, jobs: jobs.count, events: events.count, applications: applications.count, registrations: registrations.count, pendingJobs: pendingJobs.count, pendingEvents: pendingEvents.count, publishedStories: Number(storyCounts.total || 0), daily,
-      moderation: { jobs: stateCounts(jobStates, ['active', 'expired']), events: stateCounts(eventStates, ['approved']) },
-      content: { own: { jobs: Number(liveJobs.count), events: stateCounts(eventStates, ['approved']).approved, trends: Number(storyCounts.trends || 0), technology: Number(storyCounts.technology || 0) }, external: { happenings: discovered.size, news: Number(external.news || 0), prices: Number(external.agmarknet || 0) + Number(external.yarn || 0), newsLoaded: Boolean(external.newsLoaded), pricesLoaded: Boolean(external.agmarknetLoaded || external.yarnLoaded) }, sources: sourceStats, newsPublishers: external.newsPublishers || [] },
+      moderation: { jobs: jobModeration, events: eventModeration },
+      analytics: {
+        openings: { posted: Number(jobs.count), ...jobModeration },
+        happenings: { posted: Number(events.count), ...eventModeration },
+        trends: { posted: trendsPosted, internet: trendsInternet },
+        technology: { posted: technologyPosted, internet: technologyInternet },
+      },
+      content: { own: { jobs: Number(liveJobs.count), events: eventModeration.approved, trends: trendsPosted, technology: technologyPosted }, external: { happenings: discovered.size, news: Number(external.news || 0), prices: Number(external.agmarknet || 0) + Number(external.yarn || 0), newsLoaded: Boolean(external.newsLoaded), pricesLoaded: Boolean(external.agmarknetLoaded || external.yarnLoaded) }, sources: sourceStats, newsPublishers: external.newsPublishers || [] },
     });
   });
-  router.get('/admin/pending', adminOnly, async (req, res) => {
+  router.get('/admin/pending', anyAdmin, async (req, res) => {
     const [jobRows] = await db.query("SELECT j.*, c.company_name FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.status = 'pending' AND j.deleted_at IS NULL ORDER BY j.created_at ASC LIMIT 100");
     const [eventRows] = await db.query("SELECT e.*, c.company_name, (v.event_id IS NOT NULL) AS clip_available FROM events e JOIN companies c ON c.id = e.company_id LEFT JOIN event_clips v ON v.event_id = e.id WHERE e.status = 'pending' AND e.deleted_at IS NULL ORDER BY e.created_at ASC LIMIT 100");
     res.json({ jobs: jobRows.map((row) => ({ ...jobOwner(row), companyName: row.company_name })), events: eventRows.map((row) => ({ ...parseJson(row.data_json), id: row.id, companyName: row.company_name, createdAt: iso(row.created_at), status: row.status, clipAvailable: Boolean(row.clip_available) })) });
   });
-  router.patch('/admin/jobs/:id/review', adminOnly, async (req, res) => {
+  router.patch('/admin/jobs/:id/review', anyAdmin, async (req, res) => {
     const decision = req.body?.decision;
     if (!['approve', 'reject'].includes(decision)) return fail(res, 400, 'Choose approve or reject.');
     const reason = String(req.body?.reason || '').trim().slice(0, 500);
@@ -881,7 +977,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
   });
-  router.patch('/admin/events/:id/review', adminOnly, async (req, res) => {
+  router.patch('/admin/events/:id/review', anyAdmin, async (req, res) => {
     const decision = req.body?.decision;
     if (!['approve', 'reject'].includes(decision)) return fail(res, 400, 'Choose approve or reject.');
     const reason = String(req.body?.reason || '').trim().slice(0, 500);
@@ -900,11 +996,11 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
   });
-  router.get('/admin/editorial', adminOnly, async (req, res) => {
+  router.get('/admin/editorial', anyAdmin, async (req, res) => {
     const [rows] = await db.query('SELECT id, domain, title, description, image_url, published_at FROM editorial_posts ORDER BY published_at DESC LIMIT 100');
     res.json({ posts: rows.map((row) => ({ id: row.id, domain: row.domain, title: row.title, description: row.description, image: row.image_url, publishedAt: iso(row.published_at) })) });
   });
-  router.post('/admin/editorial/image', adminOnly, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '5mb' }), async (req, res) => {
+  router.post('/admin/editorial/image', anyAdmin, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '5mb' }), async (req, res) => {
     const mime = String(req.get('content-type') || '').split(';')[0].toLowerCase();
     const bytes = req.body;
     if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 5 * 1024 * 1024) return fail(res, 400, 'Choose a JPEG, PNG or WebP image under 5 MB.');
@@ -916,7 +1012,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     await db.execute('INSERT INTO editorial_images (id, mime_type, image) VALUES (?, ?, ?)', [id, mime, bytes]);
     res.status(201).json({ image: `/api/editorial/images/${id}` });
   });
-  router.post('/admin/editorial', adminOnly, async (req, res) => {
+  router.post('/admin/editorial', anyAdmin, async (req, res) => {
     const domain = String(req.body?.domain || '').trim();
     const title = String(req.body?.title || '').trim();
     const description = String(req.body?.description || '').trim();
@@ -933,32 +1029,32 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     await db.execute('INSERT INTO editorial_posts (id, domain, title, description, body, image_url, author_id) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, domain, title, description, body, image || null, req.accountId]);
     res.status(201).json({ post: { id, domain, title, description, image: image || null, publishedAt: now() } });
   });
-  router.delete('/admin/editorial/:id', adminOnly, async (req, res) => {
+  router.delete('/admin/editorial/:id', anyAdmin, async (req, res) => {
     const [[post]] = await db.execute('SELECT image_url FROM editorial_posts WHERE id = ?', [req.params.id]);
     const [result] = await db.execute('DELETE FROM editorial_posts WHERE id = ?', [req.params.id]);
     if (!result.affectedRows) return fail(res, 404, 'Story not found.');
     if (post?.image_url?.startsWith('/api/editorial/images/')) await db.execute('DELETE FROM editorial_images WHERE id = ?', [post.image_url.split('/').at(-1)]);
     res.json({ ok: true });
   });
-  router.get('/admin/people', adminOnly, async (req, res) => {
+  router.get('/admin/people', anyAdmin, async (req, res) => {
     const [rows] = await db.query('SELECT * FROM people ORDER BY created_at DESC LIMIT 100');
     res.json({ people: rows.map(personPublic) });
   });
-  router.get('/admin/companies', adminOnly, async (req, res) => {
+  router.get('/admin/companies', anyAdmin, async (req, res) => {
     const [rows] = await db.query('SELECT * FROM companies ORDER BY created_at DESC LIMIT 100');
     res.json({ companies: rows.map(companyPublic) });
   });
-  router.get('/admin/jobs', adminOnly, async (req, res) => {
-    const [rows] = await db.query('SELECT j.*, a.username AS creator_username FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin WHERE j.deleted_at IS NULL ORDER BY j.created_at DESC LIMIT 100');
+  router.get('/admin/jobs', anyAdmin, async (req, res) => {
+    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id WHERE j.deleted_at IS NULL ORDER BY j.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'job', rows.map((row) => row.id));
-    res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), reviewHistory: history.get(row.id) || [] })) });
+    res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), companyName: row.company_name || parseJson(row.data_json).companyName || '', reviewHistory: history.get(row.id) || [] })) });
   });
-  router.get('/admin/events', adminOnly, async (req, res) => {
+  router.get('/admin/events', anyAdmin, async (req, res) => {
     const [rows] = await db.query('SELECT e.*, a.username AS creator_username, (c.event_id IS NOT NULL) AS clip_available FROM events e LEFT JOIN admin_users a ON a.id = e.created_by_admin LEFT JOIN event_clips c ON c.event_id = e.id WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'event', rows.map((row) => row.id));
     res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, createdAt: iso(row.created_at), createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', clipAvailable: Boolean(row.clip_available), reviewHistory: history.get(row.id) || [] })) });
   });
-  router.get('/admin/events/:id/clip', adminOnly, async (req, res) => {
+  router.get('/admin/events/:id/clip', anyAdmin, async (req, res) => {
     const [[clip]] = await db.execute('SELECT mime_type, clip FROM event_clips WHERE event_id = ?', [req.params.id]);
     if (!clip) return fail(res, 404, 'Verification clip not found.');
     res.type(clip.mime_type).set('Cache-Control', 'private, no-store').send(clip.clip);
