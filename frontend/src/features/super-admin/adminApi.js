@@ -53,7 +53,9 @@ export async function getAdminOverview() { return request('/overview'); }
 export async function getSuperAdminActivity() { return request('/activity'); }
 export async function getPendingReviews() { return request('/pending'); }
 export async function createAdminJob(job) { return request('/jobs', { method: 'POST', body: JSON.stringify(job) }); }
+export async function updateAdminJob(id, job) { return (await request(`/jobs/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ job }) })).job; }
 export async function createAdminEvent(event) { return (await request('/events', { method: 'POST', body: JSON.stringify(event) })).event; }
+export async function updateAdminEvent(id, event) { return (await request(`/events/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ event }) })).event; }
 export async function deleteAdminListing(kind, id) {
   if (!['jobs', 'events'].includes(kind)) throw new Error('Unknown listing type.');
   return request(`/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' });

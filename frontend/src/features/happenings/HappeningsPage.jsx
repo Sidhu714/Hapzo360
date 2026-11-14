@@ -1,10 +1,11 @@
 import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, MapPin, Search, Sparkles, Clock3, ArrowUpRight, Plus, X, Users, Ticket, Phone } from 'lucide-react';
+import { CalendarDays, MapPin, Search, Sparkles, Clock3, ArrowUpRight, Plus, X, Users, Ticket, Phone, Pencil, Trash2 } from 'lucide-react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import AddEventModal from './AddEventModal';
-import { listCommunityEvents, listMyEventRegistrations, publishCommunityEvent, registerForCommunityEvent, uploadVerificationClip } from './eventsApi';
+import EventEditModal from './EventEditModal';
+import { listCommunityEvents, listMyCompanyEvents, listMyEventRegistrations, publishCommunityEvent, updateCommunityEvent, deleteCommunityEvent, registerForCommunityEvent, uploadVerificationClip } from './eventsApi';
 import { usePeopleAuth } from '../../context/PeopleAuthContext';
 import { useCompanyAuth } from '../../context/CompanyAuthContext';
 import { DISTRICTS } from '../../data/indiaLocations';
@@ -299,7 +300,28 @@ function venueLabel(event) {
 function EventImage({ src, alt, category = 'Community', className = '' }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  useEffect(() => { setLoaded(false); setFailed(false); }, [src]);
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+    if (!src) return undefined;
+
+    // An image from the browser cache can finish before React runs this effect.
+    // Check a detached image as well, so the card never remains transparent.
+    const image = new Image();
+    const markLoaded = () => setLoaded(true);
+    const markFailed = () => setFailed(true);
+    image.addEventListener('load', markLoaded);
+    image.addEventListener('error', markFailed);
+    image.src = src;
+    if (image.complete) {
+      if (image.naturalWidth > 0) markLoaded();
+      else markFailed();
+    }
+    return () => {
+      image.removeEventListener('load', markLoaded);
+      image.removeEventListener('error', markFailed);
+    };
+  }, [src]);
   if (!src || failed) {
     const kind = String(category).toLowerCase();
     const visual = /hackathon|technology|tech/.test(kind)
@@ -460,6 +482,10 @@ export default function Happening() {
   const { company, requestCompanyAuth } = useCompanyAuth();
   const [events, setEvents] = useState(() => readEvents(EVENT_CACHE_KEY));
   const [communityEvents, setCommunityEvents] = useState([]);
+  const [myCompanyEvents, setMyCompanyEvents] = useState([]);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [eventActionBusy, setEventActionBusy] = useState(false);
+  const [eventActionError, setEventActionError] = useState('');
   const [registrations, setRegistrations] = useState([]);
   const resumedAuthActionRef = useRef(null);
   const [onlineEvents, setOnlineEvents] = useState([]);
@@ -524,6 +550,12 @@ export default function Happening() {
     document.documentElement.classList.add('scroll-smooth');
     return () => document.documentElement.classList.remove('scroll-smooth');
   }, []);
+
+  const refreshMyCompanyEvents = useCallback(() => {
+    if (!company?.id) { setMyCompanyEvents([]); return Promise.resolve(); }
+    return listMyCompanyEvents().then(setMyCompanyEvents).catch((error) => setToast(error.message || 'Could not load your happenings.'));
+  }, [company?.id]);
+  useEffect(() => { refreshMyCompanyEvents(); }, [refreshMyCompanyEvents]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -956,11 +988,35 @@ export default function Happening() {
       const saved = await publishCommunityEvent(newEvent);
       try { await uploadVerificationClip(saved.id, clip.blob); }
       catch { clipShared = false; saveClip(saved.id, clip.blob).catch(() => { }); }
+      await refreshMyCompanyEvents();
       // Pending events appear in the public list only after administrator approval.
     } catch (cause) { setFormError(cause.message || 'Could not publish the event.'); return; }
     setForm(EMPTY_FORM);
     closeAdd();
     setToast(clipShared ? 'Event submitted for review. It will appear after approval.' : 'Event submitted for review. The clip upload failed; please contact support.');
+  };
+
+  const saveCompanyEvent = async (nextEvent) => {
+    if (!editingEvent) return;
+    setEventActionBusy(true); setEventActionError('');
+    try {
+      await updateCommunityEvent(editingEvent.id, nextEvent);
+      setEditingEvent(null);
+      await refreshMyCompanyEvents();
+      setToast('Happening updated and sent for review.');
+    } catch (error) { setEventActionError(error.message || 'Could not update this happening.'); }
+    finally { setEventActionBusy(false); }
+  };
+
+  const removeCompanyEvent = async (event) => {
+    if (!window.confirm(`Delete “${event.title}”? This hides it from the public calendar.`)) return;
+    setEventActionBusy(true);
+    try {
+      await deleteCommunityEvent(event.id);
+      await refreshMyCompanyEvents();
+      setToast('Happening deleted.');
+    } catch (error) { setToast(error.message || 'Could not delete this happening.'); }
+    finally { setEventActionBusy(false); }
   };
 
   const registerForEvent = useCallback((event) => {
@@ -1141,6 +1197,11 @@ export default function Happening() {
             </div>
           </section>
 
+          {company && <section className="mt-8 rounded-[1.5rem] border border-[#1f46c9]/20 bg-white p-5 shadow-sm sm:p-7" aria-labelledby="my-happenings-heading">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#1f46c9]">Company dashboard</p><h2 id="my-happenings-heading" className="mt-1 text-2xl font-black tracking-tight">Your happenings</h2><p className="mt-1 text-sm text-[#0b1220]/65">Edit a post at any time. Edited posts return to review; deletion keeps registration history.</p></div><button onClick={openAdd} className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1f46c9] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16} /> Add event</button></div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{myCompanyEvents.length ? myCompanyEvents.map((event) => <article key={event.id} className="rounded-2xl border border-[#0b1220]/10 bg-[#fbfcfe] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate font-extrabold">{event.title}</h3><p className="mt-1 text-xs text-[#0b1220]/60">{formatDate(event.date)} · {event.venue}</p></div><span className="rounded-full bg-[#e9eefb] px-2.5 py-1 text-xs font-bold capitalize text-[#14308f]">{event.status}</span></div>{event.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">Review note: {event.rejectionReason}</p>}<div className="mt-4 flex flex-wrap gap-2 border-t border-[#0b1220]/10 pt-3"><button type="button" onClick={() => { setEventActionError(''); setEditingEvent(event); }} disabled={eventActionBusy} className="inline-flex items-center gap-1 rounded-lg border border-[#1f46c9]/25 px-3 py-2 text-xs font-bold text-[#14308f]"><Pencil size={14} /> Edit</button><button type="button" onClick={() => removeCompanyEvent(event)} disabled={eventActionBusy} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700"><Trash2 size={14} /> Delete</button></div></article>) : <p className="rounded-2xl border border-dashed border-[#0b1220]/15 p-5 text-sm text-[#0b1220]/60 md:col-span-2 xl:col-span-3">You have not posted any happenings yet.</p>}</div>
+          </section>}
+
           {/* Event listing */}
           <section className="pb-20 pt-10 sm:pt-12">
             <div className="mb-7 flex items-center justify-between gap-4">
@@ -1213,6 +1274,7 @@ export default function Happening() {
       </main>
 
       {toast && <Toast key={toast} message={toast} />}
+      {editingEvent && <EventEditModal event={editingEvent} onClose={() => !eventActionBusy && setEditingEvent(null)} onSave={saveCompanyEvent} busy={eventActionBusy} error={eventActionError} />}
 
       {/* Add event modal: fixed header, scrolling body, fixed footer */}
       {addOpen && !person && (

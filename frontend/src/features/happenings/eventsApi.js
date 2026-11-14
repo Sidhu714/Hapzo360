@@ -20,7 +20,10 @@ async function request(path, options = {}) {
 }
 
 export async function listCommunityEvents() { return (await request('/events')).events; }
+export async function listMyCompanyEvents() { return (await request('/events/mine')).events; }
 export async function publishCommunityEvent(event) { return (await request('/events', { method: 'POST', body: JSON.stringify({ event }) })).event; }
+export async function updateCommunityEvent(id, event) { return (await request(`/events/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ event }) })).event; }
+export async function deleteCommunityEvent(id) { return request(`/events/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 export async function uploadVerificationClip(eventId, blob) {
   const mime = blob.type.split(';')[0] || 'video/webm';
   const response = await fetch(`${API_BASE_URL}/api/events/${encodeURIComponent(eventId)}/clip?mime=${encodeURIComponent(mime)}`, {

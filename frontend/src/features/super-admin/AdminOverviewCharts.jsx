@@ -7,6 +7,25 @@ const categories = [
   { key: 'events', label: 'Happenings', color: '#6c93b0' },
 ];
 
+function AnalyticsPieCard({ title, total, description, segments }) {
+  const chartTotal = segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0);
+  let progress = 0;
+  const slices = segments.filter((segment) => Number(segment.value) > 0).map((segment) => {
+    const start = progress;
+    progress += Number(segment.value) / chartTotal * 100;
+    return `${segment.color} ${start}% ${progress}%`;
+  });
+  return <section className="rounded-2xl border border-[#d9e4d7] bg-white p-4 shadow-sm sm:p-5" aria-label={`${title} analytics`}>
+    <div className="min-w-0"><h2 className="text-base font-extrabold text-[#19342a]">{title}</h2><p className="mt-1 text-xs leading-5 text-[#6b786e]">{description}</p></div>
+    <div className="mt-4 flex items-center gap-4">
+      <div role="img" aria-label={`${title}: ${total} total`} className="relative grid h-28 w-28 shrink-0 place-items-center rounded-full" style={{ background: chartTotal ? `conic-gradient(${slices.join(', ')})` : '#e8eee6' }}>
+        <div className="grid h-[72px] w-[72px] place-items-center rounded-full bg-white text-center shadow-[0_0_0_1px_#e8eee6]"><div><strong className="block text-2xl leading-none text-[#19342a]">{total}</strong><span className="mt-1 block text-[10px] font-semibold text-[#718475]">{title === 'Openings' || title === 'Happenings' ? 'posted' : 'items'}</span></div></div>
+      </div>
+      <dl className="min-w-0 flex-1 space-y-2">{segments.map((segment) => <div key={segment.label} className="flex items-center justify-between gap-3 text-xs"><dt className="flex min-w-0 items-center gap-2 font-medium text-[#51645a]"><i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} /><span className="truncate">{segment.label}</span></dt><dd className="font-extrabold text-[#19342a]">{Number(segment.value || 0)}</dd></div>)}</dl>
+    </div>
+  </section>;
+}
+
 export default function AdminOverviewCharts({ overview }) {
   const [activeDay, setActiveDay] = useState(6);
   const daily = overview?.daily || [];
@@ -30,6 +49,11 @@ export default function AdminOverviewCharts({ overview }) {
   });
   const selectedPoint = points[Math.min(activeDay, points.length - 1)];
   const stories = Number(overview?.publishedStories || 0);
+  const analytics = overview?.analytics || {};
+  const openings = analytics.openings || { posted: Number(overview?.jobs || 0), ...(overview?.moderation?.jobs || {}) };
+  const happenings = analytics.happenings || { posted: Number(overview?.events || 0), ...(overview?.moderation?.events || {}) };
+  const trends = analytics.trends || { posted: Number(overview?.content?.own?.trends || 0), internet: 0 };
+  const technology = analytics.technology || { posted: Number(overview?.content?.own?.technology || 0), internet: 0 };
 
   return <>
     <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -40,6 +64,15 @@ export default function AdminOverviewCharts({ overview }) {
         { label: 'Published stories', value: stories, hint: `${overview?.content?.own?.technology || 0} in Technologies` },
       ].map((metric) => <div key={metric.label} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-[#66806c]">{metric.label}</p><p className="mt-3 text-4xl font-extrabold tracking-tight text-[#19342a]">{metric.value}</p><p className="mt-2 text-xs text-[#6b786e]">{metric.hint}</p></div>)}
     </div>
+    <section className="mt-5" aria-labelledby="content-analytics-title">
+      <div className="mb-4"><h2 id="content-analytics-title" className="text-xl font-extrabold text-[#19342a]">Content analytics</h2><p className="mt-1 text-sm leading-6 text-[#6b786e]">Live moderation and content-source breakdown. Internet figures are unique items currently cached by the backend.</p></div>
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+        <AnalyticsPieCard title="Openings" total={Number(openings.posted || 0)} description="Every opening submitted to Hapzo360" segments={[{ label: 'Accepted', value: openings.approved, color: '#315844' }, { label: 'Pending', value: openings.pending, color: '#d99442' }, { label: 'Rejected', value: openings.rejected, color: '#a43732' }]} />
+        <AnalyticsPieCard title="Happenings" total={Number(happenings.posted || 0)} description="Every community event submission" segments={[{ label: 'Accepted', value: happenings.approved, color: '#315844' }, { label: 'Pending', value: happenings.pending, color: '#d99442' }, { label: 'Rejected', value: happenings.rejected, color: '#a43732' }]} />
+        <AnalyticsPieCard title="Trends" total={Number(trends.posted || 0) + Number(trends.internet || 0)} description="Hapzo360 stories and internet data" segments={[{ label: 'Posted by Hapzo360', value: trends.posted, color: '#315844' }, { label: 'Fetched from internet', value: trends.internet, color: '#6c93b0' }]} />
+        <AnalyticsPieCard title="Technologies" total={Number(technology.posted || 0) + Number(technology.internet || 0)} description="Hapzo360 stories and internet data" segments={[{ label: 'Posted by Hapzo360', value: technology.posted, color: '#315844' }, { label: 'Fetched from internet', value: technology.internet, color: '#9272b0' }]} />
+      </div>
+    </section>
     <div className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_1fr]">
       <section className="rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm sm:p-6" aria-labelledby="activity-title">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 id="activity-title" className="text-lg font-extrabold">Activity over time</h2><p className="mt-1 text-sm text-[#6b786e]">New accounts, jobs and events · last 7 days</p></div><div className="rounded-xl bg-[#eef3e9] px-4 py-2 text-right"><strong className="block text-xl leading-none text-[#315844]">{selectedPoint?.total ?? 0}</strong><span className="text-[11px] text-[#66806c]">{selectedPoint ? new Date(`${selectedPoint.day}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Today'}</span></div></div>

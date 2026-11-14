@@ -17,7 +17,9 @@ export default function GoogleSignInButton({ onCredential, onError, disabled = f
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         const message = error.code === 'auth/operation-not-allowed'
           ? 'Google sign-in is not enabled in Firebase Authentication yet.'
-          : error.message || 'Google sign-in could not be completed.';
+          : error.code === 'auth/unauthorized-domain'
+            ? 'Google sign-in is not authorised for this address yet. Add 127.0.0.1 and localhost to Firebase Authentication → Settings → Authorised domains, then try again.'
+            : error.message || 'Google sign-in could not be completed.';
         onError(message);
       }
     } finally {

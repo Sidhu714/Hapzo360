@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Building2, CalendarDays, BriefcaseBusiness, Cpu, LogOut, Newspaper, Trash2, Users, X } from 'lucide-react';
+import { Building2, CalendarDays, BriefcaseBusiness, Cpu, LogOut, Newspaper, Trash2, Users, X, Pencil } from 'lucide-react';
 import { Logo } from '../../components/Navbar';
 import AdminOverviewCharts from './AdminOverviewCharts';
 import AdminContentInsights from './AdminContentInsights';
 import AdminActionModal from './AdminActionModal';
 import AdminCreateForm from './AdminCreateForm';
+import EventEditModal from '../happenings/EventEditModal';
+import JobEditModal from './JobEditModal';
 import AdminOpeningForm from './AdminOpeningForm';
 import SuperAdminReadOnlyOverview from './SuperAdminReadOnlyOverview';
 import SuperAdminMetricPage from './SuperAdminMetricPage';
-import { deleteAdminListing, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, uploadEditorialImage, logoutAdmin } from './adminApi';
+import { deleteAdminListing, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, uploadEditorialImage, logoutAdmin, updateAdminEvent, updateAdminJob } from './adminApi';
 
 const sections = [
   { key: 'people', title: 'People', description: 'Individual accounts and activity', icon: Users },
@@ -47,9 +49,9 @@ export default function SuperAdminDashboard({ mode = 'overview' }) {
   }, []);
   if (session === undefined) return <main className="grid min-h-screen place-items-center bg-[#101f1c] text-white">Checking administrator access…</main>;
   if (!session) return <Navigate to="/super-admin/login" replace />;
-  if (session.role === 'super_admin') return mode === 'overview'
-    ? <SuperAdminReadOnlyOverview session={session} />
-    : mode === 'readonly-detail' ? <SuperAdminMetricPage session={session} metric={metric} /> : <Navigate to="/super-admin" replace />;
+  if (session.role === 'super_admin') return mode === 'readonly-detail'
+    ? <SuperAdminMetricPage session={session} metric={metric} />
+    : <AdminManagementDashboard mode={mode} session={session} />;
   if (mode === 'readonly-detail') return <Navigate to="/super-admin" replace />;
   return <AdminManagementDashboard mode={mode} session={session} />;
 }
@@ -73,6 +75,9 @@ function AdminManagementDashboard({ mode, session }) {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [actionBusy, setActionBusy] = useState('');
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [editingJob, setEditingJob] = useState(null);
+  const [editError, setEditError] = useState('');
   const [notice, setNotice] = useState('');
   const [actionModal, setActionModal] = useState(null);
   const [reviewReason, setReviewReason] = useState('');
@@ -183,6 +188,32 @@ function AdminManagementDashboard({ mode, session }) {
     setActionModal({ type: 'delete-listing', kind, item });
   };
 
+  const saveAdminEvent = async (event) => {
+    if (!editingEvent) return;
+    setActionBusy(editingEvent.id); setEditError('');
+    try {
+      await updateAdminEvent(editingEvent.id, event);
+      setEditingEvent(null);
+      setRecords(await getAdminCollection('events'));
+      await refreshAdmin();
+      setNotice('Happening updated.');
+    } catch (error) { setEditError(error.message || 'Could not update this happening.'); }
+    finally { setActionBusy(''); }
+  };
+
+  const saveAdminJob = async (job) => {
+    if (!editingJob) return;
+    setActionBusy(editingJob.id); setEditError('');
+    try {
+      await updateAdminJob(editingJob.id, job);
+      setEditingJob(null);
+      setRecords(await getAdminCollection('jobs'));
+      await refreshAdmin();
+      setNotice('Opening updated.');
+    } catch (error) { setEditError(error.message || 'Could not update this opening.'); }
+    finally { setActionBusy(''); }
+  };
+
   useEffect(() => () => { if (clipUrl) URL.revokeObjectURL(clipUrl); }, [clipUrl]);
   useEffect(() => {
     if (!imageFile) { setImagePreview(''); return undefined; }
@@ -249,13 +280,17 @@ function AdminManagementDashboard({ mode, session }) {
             <span className="text-xs text-[#86968a]">{item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : ''}</span>
             <div className="flex items-center gap-3">
               {selected === 'events' && item.clipAvailable && <button type="button" disabled={clipBusy} onClick={() => openClip(item.id)} className="text-xs font-bold text-[#315844] underline underline-offset-2">View clip</button>}
-              {(selected === 'jobs' || selected === 'events') && item.createdByAdmin && <button type="button" onClick={() => deleteListing(selected, item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.title}`}><Trash2 size={14} /> Delete</button>}
+              {selected === 'jobs' && <button type="button" onClick={() => { setEditError(''); setEditingJob(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
+              {selected === 'events' && <button type="button" onClick={() => { setEditError(''); setEditingEvent(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
+              {(selected === 'jobs' || selected === 'events') && <button type="button" onClick={() => deleteListing(selected, item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.title}`}><Trash2 size={14} /> Delete</button>}
             </div>
           </div>
         </article>)}</div> : <p className="mt-4 rounded-2xl border border-[#d9e4d7] bg-white p-6 text-sm text-[#6b786e] shadow-sm">No records in this section yet.</p>}
       </section>}
       {clipUrl && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={closeClip}><div className="w-full max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><h2 className="font-bold">Event verification clip</h2><button type="button" onClick={closeClip} aria-label="Close clip" className="rounded-lg p-2 hover:bg-stone-100"><X size={19} /></button></div><video src={clipUrl} controls className="max-h-[70vh] w-full rounded-xl bg-black" /></div></div>}
       {actionModal && <AdminActionModal action={actionModal} reason={reviewReason} onReasonChange={setReviewReason} onClose={() => setActionModal(null)} onConfirm={confirmAction} busy={actionBusy === actionModal.item.id} error={modalError} />}
+      {editingEvent && <EventEditModal event={editingEvent} allowOrganizer onClose={() => !actionBusy && setEditingEvent(null)} onSave={saveAdminEvent} busy={actionBusy === editingEvent.id} error={editError} />}
+      {editingJob && <JobEditModal job={editingJob} onClose={() => !actionBusy && setEditingJob(null)} onSave={saveAdminJob} busy={actionBusy === editingJob.id} error={editError} />}
       <Link to="/" className="mt-10 inline-flex text-sm font-bold text-[#315844] underline underline-offset-4">View public site</Link>
       </div>
     </div>
