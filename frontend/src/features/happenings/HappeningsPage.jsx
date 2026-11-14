@@ -5,7 +5,7 @@ import { CalendarDays, MapPin, Search, Sparkles, Clock3, ArrowUpRight, Plus, X, 
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import AddEventModal from './AddEventModal';
 import EventEditModal from './EventEditModal';
-import { listCommunityEvents, listMyCompanyEvents, listMyEventRegistrations, publishCommunityEvent, updateCommunityEvent, deleteCommunityEvent, registerForCommunityEvent, uploadVerificationClip } from './eventsApi';
+import { listCommunityEvents, listMyCompanyEvents, listMyEventRegistrations, publishCommunityEvent, updateCommunityEvent, deleteCommunityEvent, registerForCommunityEvent, registerForExternalEvent, uploadVerificationClip } from './eventsApi';
 import { usePeopleAuth } from '../../context/PeopleAuthContext';
 import { useCompanyAuth } from '../../context/CompanyAuthContext';
 import { DISTRICTS } from '../../data/indiaLocations';
@@ -473,6 +473,7 @@ function normalizeAngle(angle) {
 }
 
 const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', registrationUrl: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
+const EMPTY_EXTERNAL_REGISTRATION = { email: '', phone: '', password: '' };
 
 /* ---------- Main component ---------- */
 export default function Happening() {
@@ -504,6 +505,10 @@ export default function Happening() {
   const [addClosing, setAddClosing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [detailClosing, setDetailClosing] = useState(false);
+  const [externalRegistrationEvent, setExternalRegistrationEvent] = useState(null);
+  const [externalRegistrationForm, setExternalRegistrationForm] = useState(EMPTY_EXTERNAL_REGISTRATION);
+  const [externalRegistrationBusy, setExternalRegistrationBusy] = useState(false);
+  const [externalRegistrationError, setExternalRegistrationError] = useState('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
@@ -919,23 +924,63 @@ export default function Happening() {
   }, [stopCamera, discardClip]);
   const openDetails = useCallback(event => { window.clearTimeout(detailTimerRef.current); setDetailClosing(false); setSelectedEvent(event); }, []);
   const closeDetails = useCallback(() => {
+    setExternalRegistrationEvent(null);
     setDetailClosing(true);
     window.clearTimeout(detailTimerRef.current);
     detailTimerRef.current = window.setTimeout(() => { setSelectedEvent(null); setDetailClosing(false); }, EXIT_MS);
   }, []);
+  const openExternalRegistration = useCallback((event) => {
+    setExternalRegistrationError('');
+    setExternalRegistrationForm({ email: person?.email || '', phone: person?.phone || '', password: '' });
+    setExternalRegistrationEvent(event);
+  }, [person]);
+  const closeExternalRegistration = useCallback(() => {
+    if (externalRegistrationBusy) return;
+    setExternalRegistrationError('');
+    setExternalRegistrationEvent(null);
+  }, [externalRegistrationBusy]);
+  const submitExternalRegistration = async (event) => {
+    event.preventDefault();
+    const email = externalRegistrationForm.email.trim().toLowerCase();
+    const phone = externalRegistrationForm.phone.replace(/\D/g, '').slice(-10);
+    const password = externalRegistrationForm.password;
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setExternalRegistrationError('Enter a valid email address.'); return; }
+    if (!/^[6-9]\d{9}$/.test(phone)) { setExternalRegistrationError('Enter a valid 10-digit WhatsApp number.'); return; }
+    if (password.length < 6) { setExternalRegistrationError('Create a password with at least 6 characters.'); return; }
+    if (!externalRegistrationEvent) return;
+    const registrationWindow = window.open('', '_blank');
+    if (registrationWindow) registrationWindow.opener = null;
+    setExternalRegistrationBusy(true);
+    setExternalRegistrationError('');
+    try {
+      const result = await registerForExternalEvent(eventIdentity(externalRegistrationEvent), { email, phone, password });
+      if (registrationWindow && !registrationWindow.closed) registrationWindow.location.replace(result.registrationUrl);
+      else window.open(result.registrationUrl, '_blank', 'noopener,noreferrer');
+      const eventId = eventIdentity(externalRegistrationEvent);
+      const increaseRegistrationCount = (item) => eventIdentity(item) === eventId ? { ...item, registeredCount: registrationCount(item) + 1 } : item;
+      setSelectedEvent((current) => current ? increaseRegistrationCount(current) : current);
+      setCommunityEvents((current) => current.map(increaseRegistrationCount));
+      setExternalRegistrationEvent(null);
+      setToast('Your details were saved. The organiser’s registration form opened in a new tab.');
+    } catch (error) {
+      if (registrationWindow && !registrationWindow.closed) registrationWindow.close();
+      setExternalRegistrationError(error.message || 'Could not save your registration details.');
+    } finally { setExternalRegistrationBusy(false); }
+  };
 
   useEffect(() => {
-    if (!addOpen && !selectedEvent) return undefined;
+    if (!addOpen && !selectedEvent && !externalRegistrationEvent) return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = event => {
       if (event.key !== 'Escape') return;
-      if (addOpen && !addClosing) closeAdd();
+      if (externalRegistrationEvent && !externalRegistrationBusy) closeExternalRegistration();
+      else if (addOpen && !addClosing) closeAdd();
       else if (selectedEvent && !detailClosing) closeDetails();
     };
     window.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey); };
-  }, [addOpen, addClosing, selectedEvent, detailClosing, closeAdd, closeDetails]);
+  }, [addOpen, addClosing, selectedEvent, detailClosing, externalRegistrationEvent, externalRegistrationBusy, closeAdd, closeDetails, closeExternalRegistration]);
 
   const onFieldChange = event => {
     const { name, value, checked, type } = event.target;
@@ -1438,9 +1483,9 @@ export default function Happening() {
               {!selectedEvent.scraped && !company && (
                 <div className="mt-7 rounded-2xl border border-[#0b1220]/10 bg-white p-4">
                   {selectedEvent.registrationUrl ? (
-                    <a href={selectedEvent.registrationUrl} target="_blank" rel="noopener noreferrer" className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
+                    <button type="button" onClick={() => openExternalRegistration(selectedEvent)} className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
                       Register for this event <ArrowUpRight size={16} />
-                    </a>
+                    </button>
                   ) : (
                     <button
                       type="button"
@@ -1452,7 +1497,7 @@ export default function Happening() {
                     </button>
                   )}
                   <p className="mt-2 text-center text-xs leading-5 text-[#0b1220]/50">
-                    {selectedEvent.registrationUrl ? 'You will be redirected to the organiser’s registration form.' : 'Registration is saved to this browser for your Hapzo account.'}
+                    {selectedEvent.registrationUrl ? 'Enter your email, WhatsApp number and a password first. Then the organiser’s registration form will open in a new tab.' : 'Registration is saved to this browser for your Hapzo account.'}
                   </p>
                 </div>
               )}
@@ -1470,6 +1515,25 @@ export default function Happening() {
               )}
             </div>
           </div>
+        </Modal>
+      )}
+
+      {externalRegistrationEvent && (
+        <Modal closing={false} onBackdrop={closeExternalRegistration} labelledBy="external-registration-title" className="max-w-md">
+          <div className="border-b border-[#0b1220]/10 px-5 py-5 sm:px-7">
+            <button type="button" onClick={closeExternalRegistration} disabled={externalRegistrationBusy} aria-label="Close registration form" className="absolute right-4 top-4 rounded-full bg-white p-2 text-[#0b1220] shadow-sm transition hover:bg-[#e9eefb] disabled:opacity-50"><X size={19} /></button>
+            <p className="text-sm font-bold text-[#1f46c9]">EVENT REGISTRATION</p>
+            <h2 id="external-registration-title" className="mt-2 pr-10 text-2xl font-black tracking-[-0.04em]">Create your registration</h2>
+            <p className="mt-2 text-sm leading-6 text-[#0b1220]/65">Create your event registration for <span className="font-semibold text-[#0b1220]">{externalRegistrationEvent.title || externalRegistrationEvent.name}</span>. We will then open the organiser’s form in a new tab.</p>
+          </div>
+          <form onSubmit={submitExternalRegistration} className="space-y-5 overflow-y-auto px-5 py-6 sm:px-7">
+            <label className="grid gap-2 text-sm font-bold text-[#0b1220]">Email address<input required type="email" maxLength={254} autoComplete="email" value={externalRegistrationForm.email} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, email: event.target.value }))} className="min-h-12 rounded-xl border border-[#0b1220]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#1f46c9] focus:ring-2 focus:ring-[#1f46c9]/20" placeholder="you@example.com" /></label>
+            <label className="grid gap-2 text-sm font-bold text-[#0b1220]">WhatsApp number<div className="flex min-h-12 rounded-xl border border-[#0b1220]/15 bg-white transition focus-within:border-[#1f46c9] focus-within:ring-2 focus-within:ring-[#1f46c9]/20"><span className="flex items-center border-r border-[#0b1220]/10 px-3 text-sm font-semibold text-[#0b1220]/60">+91</span><input required inputMode="numeric" autoComplete="tel" maxLength={14} value={externalRegistrationForm.phone} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, phone: event.target.value.replace(/[^0-9+\-\s()]/g, '') }))} className="min-w-0 flex-1 rounded-r-xl bg-transparent px-4 text-base font-normal outline-none" placeholder="10-digit WhatsApp number" /></div></label>
+            <label className="grid gap-2 text-sm font-bold text-[#0b1220]">Create password<input required type="password" minLength={6} maxLength={128} autoComplete="new-password" value={externalRegistrationForm.password} onChange={(event) => setExternalRegistrationForm((current) => ({ ...current, password: event.target.value }))} className="min-h-12 rounded-xl border border-[#0b1220]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#1f46c9] focus:ring-2 focus:ring-[#1f46c9]/20" placeholder="At least 6 characters" /></label>
+            {externalRegistrationError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{externalRegistrationError}</p>}
+            <p className="text-xs leading-5 text-[#0b1220]/55">Your email and WhatsApp number are saved for this event. Your password is protected with one-way hashing and is never stored as readable text.</p>
+            <div className="flex flex-col-reverse gap-3 border-t border-[#0b1220]/10 pt-5 sm:flex-row sm:justify-end"><button type="button" onClick={closeExternalRegistration} disabled={externalRegistrationBusy} className="min-h-11 rounded-full border border-[#0b1220]/15 px-5 text-sm font-bold transition hover:bg-[#f0f2f5] disabled:opacity-50">Cancel</button><button type="submit" disabled={externalRegistrationBusy} className={`${btnPrimary} min-h-11 px-5 text-sm`}>{externalRegistrationBusy ? 'Saving details…' : <>Submit & continue <ArrowUpRight size={16} /></>}</button></div>
+          </form>
         </Modal>
       )}
     </div>

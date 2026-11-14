@@ -586,7 +586,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   });
 
   router.get('/events', async (req, res) => {
-    const [rows] = await db.execute("SELECT e.*, COUNT(r.id) AS registered_count FROM events e LEFT JOIN event_registrations r ON r.event_id = e.id WHERE e.status = 'approved' AND e.deleted_at IS NULL GROUP BY e.id ORDER BY e.created_at DESC LIMIT 500");
+    const [rows] = await db.execute("SELECT e.*, (SELECT COUNT(*) FROM event_registrations r WHERE BINARY r.event_id = BINARY e.id) + (SELECT COUNT(*) FROM event_external_registrations er WHERE BINARY er.event_id = BINARY e.id) AS registered_count FROM events e WHERE e.status = 'approved' AND e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 500");
     res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, registeredCount: Number(row.registered_count) })) });
   });
   router.post('/events', companyOnly, async (req, res) => {
@@ -637,6 +637,21 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   router.get('/events/registrations/me', personOnly, async (req, res) => {
     const [rows] = await db.execute('SELECT event_id, event_title, created_at FROM event_registrations WHERE person_id = ? ORDER BY created_at DESC', [req.accountId]);
     res.json({ registrations: rows.map((row) => ({ eventId: row.event_id, eventTitle: row.event_title, registeredAt: iso(row.created_at) })) });
+  });
+  router.post('/events/:id/external-registration', async (req, res) => {
+    const attendeeEmail = String(req.body?.email || '').trim().toLowerCase().slice(0, 254);
+    const attendeePhone = phoneOf(req.body?.phone);
+    const password = String(req.body?.password || '');
+    if (!/^\S+@\S+\.\S+$/.test(attendeeEmail)) return fail(res, 400, 'Enter a valid email address.');
+    if (!/^[6-9]\d{9}$/.test(attendeePhone)) return fail(res, 400, 'Enter a valid 10-digit WhatsApp number.');
+    if (password.length < 6) return fail(res, 400, 'Create a password with at least 6 characters.');
+    const [[event]] = await db.execute("SELECT id, data_json FROM events WHERE id = ? AND status = 'approved' AND deleted_at IS NULL", [req.params.id]);
+    if (!event) return fail(res, 404, 'This event is not open for registration.');
+    const eventData = parseJson(event.data_json);
+    const registrationUrl = registrationUrlOf(eventData.registrationUrl);
+    if (!registrationUrl) return fail(res, 400, 'The organiser has not added a registration link for this event.');
+    await db.execute('INSERT INTO event_external_registrations (id, event_id, event_key, event_title, attendee_email, attendee_phone, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE attendee_phone = VALUES(attendee_phone), password_hash = VALUES(password_hash), created_at = CURRENT_TIMESTAMP(3)', [randomUUID(), event.id, tokenHash(event.id), String(eventData.title || eventData.name || 'Event').slice(0, 255), attendeeEmail, attendeePhone, hashPassword(password)]);
+    res.status(201).json({ ok: true, registrationUrl });
   });
   router.post('/events/:id/register', personOnly, async (req, res) => {
     const title = String(req.body?.eventTitle || '').trim().slice(0, 255);
@@ -907,7 +922,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const [[jobs]] = await db.query('SELECT COUNT(*) AS count FROM jobs WHERE deleted_at IS NULL');
     const [[events]] = await db.query('SELECT COUNT(*) AS count FROM events WHERE deleted_at IS NULL');
     const [[applications]] = await db.query('SELECT COUNT(*) AS count FROM applications');
-    const [[registrations]] = await db.query('SELECT COUNT(*) AS count FROM event_registrations');
+    const [[registrations]] = await db.query('SELECT (SELECT COUNT(*) FROM event_registrations) + (SELECT COUNT(*) FROM event_external_registrations) AS count');
     const [[pendingJobs]] = await db.query("SELECT COUNT(*) AS count FROM jobs WHERE status = 'pending' AND deleted_at IS NULL");
     const [[pendingEvents]] = await db.query("SELECT COUNT(*) AS count FROM events WHERE status = 'pending' AND deleted_at IS NULL");
     const [jobStates] = await db.query("SELECT status, COUNT(*) AS count FROM jobs WHERE deleted_at IS NULL GROUP BY status");
@@ -970,7 +985,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   router.get('/admin/pending', anyAdmin, async (req, res) => {
     const [jobRows] = await db.query("SELECT j.*, c.company_name FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.status = 'pending' AND j.deleted_at IS NULL ORDER BY j.created_at ASC LIMIT 100");
     const [eventRows] = await db.query("SELECT e.*, c.company_name, (v.event_id IS NOT NULL) AS clip_available FROM events e JOIN companies c ON c.id = e.company_id LEFT JOIN event_clips v ON v.event_id = e.id WHERE e.status = 'pending' AND e.deleted_at IS NULL ORDER BY e.created_at ASC LIMIT 100");
-    res.json({ jobs: jobRows.map((row) => ({ ...jobOwner(row), companyName: row.company_name })), events: eventRows.map((row) => ({ ...parseJson(row.data_json), id: row.id, companyName: row.company_name, createdAt: iso(row.created_at), status: row.status, clipAvailable: Boolean(row.clip_available) })) });
+    res.json({ jobs: jobRows.map((row) => ({ ...jobOwner(row), companyName: row.company_name })), events: eventRows.map((row) => ({ ...parseJson(row.data_json), id: row.id, companyId: row.company_id || '', companyName: row.company_name, createdAt: iso(row.created_at), status: row.status, clipAvailable: Boolean(row.clip_available) })) });
   });
   router.patch('/admin/jobs/:id/review', anyAdmin, async (req, res) => {
     const decision = req.body?.decision;
@@ -1065,9 +1080,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), companyName: row.company_name || parseJson(row.data_json).companyName || '', reviewHistory: history.get(row.id) || [] })) });
   });
   router.get('/admin/events', anyAdmin, async (req, res) => {
-    const [rows] = await db.query('SELECT e.*, a.username AS creator_username, (c.event_id IS NOT NULL) AS clip_available FROM events e LEFT JOIN admin_users a ON a.id = e.created_by_admin LEFT JOIN event_clips c ON c.event_id = e.id WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 100');
+    const [rows] = await db.query('SELECT e.*, a.username AS creator_username, co.company_name, (ec.event_id IS NOT NULL) AS clip_available FROM events e LEFT JOIN admin_users a ON a.id = e.created_by_admin LEFT JOIN companies co ON co.id = e.company_id LEFT JOIN event_clips ec ON ec.event_id = e.id WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'event', rows.map((row) => row.id));
-    res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, createdAt: iso(row.created_at), createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', clipAvailable: Boolean(row.clip_available), reviewHistory: history.get(row.id) || [] })) });
+    res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, companyId: row.company_id || '', companyName: row.company_name || '', createdAt: iso(row.created_at), createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', clipAvailable: Boolean(row.clip_available), reviewHistory: history.get(row.id) || [] })) });
   });
   router.get('/admin/events/:id/clip', anyAdmin, async (req, res) => {
     const [[clip]] = await db.execute('SELECT mime_type, clip FROM event_clips WHERE event_id = ?', [req.params.id]);

@@ -65,6 +65,8 @@ function AdminManagementDashboard({ mode, session }) {
   const [busy, setBusy] = useState(false);
   const [overview, setOverview] = useState(null);
   const [records, setRecords] = useState([]);
+  const [eventCompanyFilter, setEventCompanyFilter] = useState('all');
+  const [eventStatusFilter, setEventStatusFilter] = useState('all');
   const [loadError, setLoadError] = useState('');
   const [clipUrl, setClipUrl] = useState('');
   const [clipBusy, setClipBusy] = useState(false);
@@ -105,6 +107,12 @@ function AdminManagementDashboard({ mode, session }) {
     getAdminCollection(selected).then((items) => { if (active) setRecords(items); }).catch((error) => { if (active) setLoadError(error.message); });
     return () => { active = false; };
   }, [session, selected]);
+
+  useEffect(() => {
+    if (selected !== 'events') return;
+    setEventCompanyFilter('all');
+    setEventStatusFilter('all');
+  }, [selected]);
 
   const signOut = async () => {
     setBusy(true);
@@ -233,6 +241,16 @@ function AdminManagementDashboard({ mode, session }) {
     setImageFile(file);
   };
 
+  const eventCompanyOptions = selected === 'events' ? Object.values(records.reduce((groups, item) => {
+    const id = item.companyId || '__hapzo360_admin__';
+    if (!groups[id]) groups[id] = { id, name: item.companyName || (item.createdByAdmin ? 'Hapzo360 admin' : 'Unknown company'), count: 0 };
+    groups[id].count += 1;
+    return groups;
+  }, {})).sort((a, b) => a.name.localeCompare(b.name)) : [];
+  const matchesSelectedCompany = (item) => eventCompanyFilter === 'all' || (item.companyId || '__hapzo360_admin__') === eventCompanyFilter;
+  const eventStatusCounts = ['approved', 'pending', 'rejected'].reduce((counts, status) => ({ ...counts, [status]: records.filter((item) => matchesSelectedCompany(item) && item.status === status).length }), {});
+  const visibleRecords = selected === 'events' ? records.filter((item) => matchesSelectedCompany(item) && (eventStatusFilter === 'all' || item.status === eventStatusFilter)) : records;
+
   if (selected && ![...sections.map((item) => item.key), 'trends', 'technology'].includes(selected)) return <Navigate to="/super-admin" replace />;
 
   return <main className="min-h-screen bg-[#eef3e9] text-[#19342a]">
@@ -257,6 +275,7 @@ function AdminManagementDashboard({ mode, session }) {
       {createKind === 'events' && <AdminCreateForm kind="events" onCreated={() => navigate('/super-admin/events')} />}
       {selected && <><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Administration</p><h1 className="mt-3 text-4xl font-extrabold tracking-tight">{sections.find((item) => item.key === selected)?.title || (selected === 'trends' ? 'Trends' : 'Technologies')}</h1></>}
       {(selected === 'jobs' || selected === 'events') && <Link to={`/super-admin/${selected}/new`} className="mt-5 inline-flex rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#244936]">Create {selected === 'jobs' ? 'opening' : 'happening'} →</Link>}
+      {selected === 'events' && <section className="mt-7 rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm" aria-label="Happening filters"><div><h2 className="text-lg font-extrabold">Filter happenings</h2><p className="mt-1 text-sm text-[#64736a]">Choose a company to see its moderation totals.</p></div><div className="mt-4 grid gap-3 lg:grid-cols-4"><label className="grid gap-1.5 text-sm font-bold text-[#315844]">Company<select value={eventCompanyFilter} onChange={(event) => { setEventCompanyFilter(event.target.value); setEventStatusFilter('all'); }} className="rounded-xl border border-[#cbd9ca] bg-white p-3 font-normal text-[#19342a]"><option value="all">All companies · {eventCompanyOptions.length} companies</option>{eventCompanyOptions.map((company) => <option key={company.id} value={company.id}>{company.name} · {company.count} happening{company.count === 1 ? '' : 's'}</option>)}</select></label>{[['approved', 'Approved'], ['pending', 'Pending'], ['rejected', 'Rejected']].map(([status, label]) => <button key={status} type="button" onClick={() => setEventStatusFilter((current) => current === status ? 'all' : status)} className={`rounded-xl border p-3 text-left transition ${eventStatusFilter === status ? 'border-[#315844] bg-[#315844] text-white' : 'border-[#d9e4d7] bg-[#f8fbf6] text-[#19342a] hover:border-[#88a28d]'}`} aria-pressed={eventStatusFilter === status}><span className="block text-xs font-bold uppercase tracking-wide opacity-80">{label}</span><span className="mt-1 block text-2xl font-extrabold">{eventStatusCounts[status]}</span></button>)}</div><p className="mt-3 text-xs text-[#64736a]">Showing {visibleRecords.length} happening{visibleRecords.length === 1 ? '' : 's'}. Click a status box to filter; click it again to clear that status filter.</p></section>}
       {(selected === 'jobs' || selected === 'events') && <section className="mt-10" aria-labelledby="review-heading">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Moderation</p><h2 id="review-heading" className="mt-2 text-2xl font-extrabold">Awaiting approval</h2></div><span className="rounded-full bg-[#dcebd4] px-4 py-2 text-sm font-bold">{pending.jobs.length + pending.events.length} pending</span></div>
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -269,10 +288,9 @@ function AdminManagementDashboard({ mode, session }) {
       {(selected === 'trends' || selected === 'technology') && <section className="mt-10"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-extrabold">Published stories</h2><p className="mt-1 text-sm text-[#6b786e]">Stories written by the Hapzo360 team</p></div><Link to={`/super-admin/stories/new?domain=${selected === 'technology' ? 'technology' : 'all'}`} className="rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white">Publish a story →</Link></div>{editorial.filter((post) => post.domain === (selected === 'technology' ? 'technology' : 'all')).length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{editorial.filter((post) => post.domain === (selected === 'technology' ? 'technology' : 'all')).map((post) => <article key={post.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm"><span className="text-xs font-extrabold uppercase tracking-wide text-[#52705b]">{selected === 'technology' ? 'Technologies' : 'Trends'}</span><h3 className="mt-2 text-base font-extrabold">{post.title}</h3><p className="mt-2 line-clamp-3 text-sm text-[#6b786e]">{post.description}</p><div className="mt-4 flex items-center justify-between gap-3 border-t border-[#ecf0e9] pt-3"><span className="text-xs text-[#86968a]">Published {new Date(post.publishedAt).toLocaleDateString('en-IN')}</span><button type="button" onClick={() => deleteStory(post)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[#a43732] hover:bg-red-50 disabled:opacity-50" aria-label={`Delete ${post.title}`}><Trash2 size={14} /> Delete</button></div></article>)}</div> : <p className="mt-5 rounded-2xl border border-[#d9e4d7] bg-white p-6 text-sm text-[#6b786e] shadow-sm">No stories published yet.</p>}</section>}
       {['people', 'companies', 'jobs', 'events'].includes(selected) && <section className="mt-10">
         <div><h2 className="text-xl font-extrabold">{sections.find((item) => item.key === selected)?.title}</h2><p className="mt-1 text-xs text-[#6b786e]">Most recent 100 records</p></div>
-        {records.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{records.map((item) => <article key={item.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 text-sm shadow-sm">
+        {visibleRecords.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleRecords.map((item) => <article key={item.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 text-sm shadow-sm">
           <span className="text-xs font-bold uppercase tracking-wide text-[#66806c]">{sections.find((section) => section.key === selected)?.title}</span>
-          <h3 className="mt-2 break-words text-base font-extrabold">{item.name || item.companyName || item.title || 'Untitled'}</h3>
-          <p className="mt-2 break-words text-[#64736a]">{item.email || item.phone || item.location || item.venue || ''}</p>
+          {selected === 'people' ? <dl className="mt-4 grid gap-3 rounded-xl border border-[#e4ece0] bg-[#f9fbf7] p-4"><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Name</dt><dd className="mt-1 break-words text-base font-extrabold text-[#19342a]">{item.name || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Email ID</dt><dd className="mt-1 break-all text-[#43584b]">{item.email || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">WhatsApp number</dt><dd className="mt-1 break-all font-semibold text-[#43584b]">{item.phone ? `+91 ${item.phone}` : 'Not provided'}</dd></div></dl> : <><h3 className="mt-2 break-words text-base font-extrabold">{item.name || item.companyName || item.title || 'Untitled'}</h3><p className="mt-2 break-words text-[#64736a]">{item.email || item.phone || item.location || item.venue || ''}</p></>}
           {item.createdByAdmin && <p className="mt-2 text-xs font-semibold text-[#315844]">Published by admin {item.creatorUsername}</p>}
           {item.status && <span className="mt-3 inline-block rounded-full bg-[#eef3e9] px-3 py-1 text-xs font-bold capitalize">{item.status}</span>}
           {(selected === 'jobs' || selected === 'events') && <ReviewHistory history={item.reviewHistory} />}

@@ -32,4 +32,5 @@ export async function uploadVerificationClip(eventId, blob) {
   if (!response.ok) throw new Error('Could not upload the verification clip.');
 }
 export async function listMyEventRegistrations() { return (await request('/events/registrations/me')).registrations; }
+export async function registerForExternalEvent(eventId, attendee) { return request(`/events/${encodeURIComponent(eventId)}/external-registration`, { method: 'POST', body: JSON.stringify(attendee) }); }
 export async function registerForCommunityEvent(eventId, eventTitle) { return request(`/events/${encodeURIComponent(eventId)}/register`, { method: 'POST', body: JSON.stringify({ eventTitle }) }); }
