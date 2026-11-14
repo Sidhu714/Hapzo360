@@ -289,7 +289,7 @@ function AdminManagementDashboard({ mode, session }) {
       </section>}
       {clipUrl && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={closeClip}><div className="w-full max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><h2 className="font-bold">Event verification clip</h2><button type="button" onClick={closeClip} aria-label="Close clip" className="rounded-lg p-2 hover:bg-stone-100"><X size={19} /></button></div><video src={clipUrl} controls className="max-h-[70vh] w-full rounded-xl bg-black" /></div></div>}
       {actionModal && <AdminActionModal action={actionModal} reason={reviewReason} onReasonChange={setReviewReason} onClose={() => setActionModal(null)} onConfirm={confirmAction} busy={actionBusy === actionModal.item.id} error={modalError} />}
-      {editingEvent && <EventEditModal event={editingEvent} allowOrganizer onClose={() => !actionBusy && setEditingEvent(null)} onSave={saveAdminEvent} busy={actionBusy === editingEvent.id} error={editError} />}
+      {editingEvent && <EventEditModal event={editingEvent} allowOrganizer onClose={() => !actionBusy && setEditingEvent(null)} onSave={saveAdminEvent} onUploadImage={uploadEditorialImage} busy={actionBusy === editingEvent.id} error={editError} />}
       {editingJob && <JobEditModal job={editingJob} onClose={() => !actionBusy && setEditingJob(null)} onSave={saveAdminJob} busy={actionBusy === editingJob.id} error={editError} />}
       <Link to="/" className="mt-10 inline-flex text-sm font-bold text-[#315844] underline underline-offset-4">View public site</Link>
       </div>

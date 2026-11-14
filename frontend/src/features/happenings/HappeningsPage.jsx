@@ -1438,7 +1438,7 @@ export default function Happening() {
               {!selectedEvent.scraped && !company && (
                 <div className="mt-7 rounded-2xl border border-[#0b1220]/10 bg-white p-4">
                   {selectedEvent.registrationUrl ? (
-                    <a href={selectedEvent.registrationUrl} className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
+                    <a href={selectedEvent.registrationUrl} target="_blank" rel="noopener noreferrer" className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
                       Register for this event <ArrowUpRight size={16} />
                     </a>
                   ) : (
@@ -1465,7 +1465,7 @@ export default function Happening() {
                     </a>
                   </div>
                 )
-              ) : (
+              ) : !selectedEvent.registrationUrl && (
                 <button onClick={closeDetails} className={`${btnPrimary} mt-8 w-full px-6 py-4 text-sm`}>Done</button>
               )}
             </div>
