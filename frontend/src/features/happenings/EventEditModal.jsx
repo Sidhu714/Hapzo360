@@ -11,7 +11,7 @@ export default function EventEditModal({ event, allowOrganizer = false, onClose,
   const [form, setForm] = useState(() => ({
     title: event.title || '', organizer: event.organizer || '', date: dayValue(event.date), time: event.time || '',
     venue: event.venue || '', location: event.location || '', category: event.category || 'Community', sector: event.sector || '',
-    specialty: event.specialty || '', description: event.description || '', contactPhone: event.contactPhone || '', image: event.image || '',
+    specialty: event.specialty || '', description: event.description || '', contactPhone: event.contactPhone || '', registrationUrl: event.registrationUrl || '', image: event.image || '',
   }));
   const change = (name) => (input) => setForm((current) => ({ ...current, [name]: input.target.value }));
   const submit = (input) => { input.preventDefault(); onSave({ ...form, date: form.date ? new Date(`${form.date}T12:00:00+05:30`).toISOString() : '' }); };
@@ -29,6 +29,7 @@ export default function EventEditModal({ event, allowOrganizer = false, onClose,
         <label className="grid gap-1.5 text-sm font-bold">Sector<input maxLength={80} value={form.sector} onChange={change('sector')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold">Specialty<input maxLength={80} value={form.specialty} onChange={change('specialty')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold sm:col-span-2">Contact phone<input inputMode="numeric" maxLength={10} value={form.contactPhone} onChange={change('contactPhone')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
+        <label className="grid gap-1.5 text-sm font-bold sm:col-span-2">Registration link <span className="font-normal text-slate-500">(optional)</span><input type="url" inputMode="url" maxLength={2048} value={form.registrationUrl} onChange={change('registrationUrl')} placeholder="https://forms.example.com/your-event" className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold sm:col-span-2">Image URL<input maxLength={2048} value={form.image} onChange={change('image')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold sm:col-span-2">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={change('description')} className="resize-y rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700 sm:col-span-2">{error}</p>}

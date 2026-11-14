@@ -322,6 +322,23 @@ export default function AddEventModal({
                         <span className="block text-xs text-[#11192f]/50">Shown to people who open your event details.</span>
                     </label>
 
+                    <label className="block space-y-2">
+                        <span className="text-sm font-bold">
+                            Registration link <span className="font-normal text-[#11192f]/45">(optional)</span>
+                        </span>
+                        <input
+                            name="registrationUrl"
+                            type="url"
+                            inputMode="url"
+                            value={form.registrationUrl || ''}
+                            onChange={onFieldChange}
+                            placeholder="https://forms.example.com/your-event"
+                            maxLength={2048}
+                            className={inputBase}
+                        />
+                        <span className="block text-xs text-[#11192f]/50">People can open this organiser registration form from the event details.</span>
+                    </label>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <SearchSelect
                             id="event-category"

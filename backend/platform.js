@@ -156,6 +156,14 @@ function eventOwner(row) {
   return { ...parseJson(row.data_json), id: row.id, companyId: row.company_id, createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, createdAt: iso(row.created_at), reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '' };
 }
 
+function registrationUrlOf(value, fallback = '') {
+  const registrationUrl = String(value === undefined ? fallback : value || '').trim().slice(0, 2048);
+  if (registrationUrl && !/^https:\/\//i.test(registrationUrl)) {
+    throw Object.assign(new Error('Use a valid HTTPS registration link.'), { status: 400 });
+  }
+  return registrationUrl;
+}
+
 function updatedEventData(input, current, { allowOrganizer = false } = {}) {
   const date = new Date(input?.date);
   const title = String(input?.title || '').trim().slice(0, 120);
@@ -167,9 +175,10 @@ function updatedEventData(input, current, { allowOrganizer = false } = {}) {
   if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) throw Object.assign(new Error('Enter a valid 10-digit contact phone number.'), { status: 400 });
   const image = String(input?.image || '').trim().slice(0, 2048);
   if (image && !/^https:\/\//i.test(image) && !image.startsWith('data:image/') && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) throw Object.assign(new Error('Use an HTTPS image URL or a valid uploaded image.'), { status: 400 });
+  const registrationUrl = registrationUrlOf(input?.registrationUrl, current.registrationUrl || '');
   return {
     ...current,
-    title, venue, date: date.toISOString(), contactPhone, image,
+    title, venue, date: date.toISOString(), contactPhone, image, registrationUrl,
     location: String(input?.location || '').trim().slice(0, 120), time: String(input?.time || '').trim().slice(0, 20),
     category: String(input?.category || 'Community').trim().slice(0, 80), sector: String(input?.sector || '').trim().slice(0, 80),
     specialty: String(input?.specialty || '').trim().slice(0, 80), description: String(input?.description || '').trim().slice(0, 1200),
@@ -584,9 +593,12 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const event = req.body?.event || {};
     if (!event.title?.trim() || !event.date || !event.venue?.trim()) return fail(res, 400, 'Event name, date and venue are required.');
     if (new Date(event.date).getTime() < Date.now() - 86_400_000) return fail(res, 400, 'Choose today or a future date.');
+    let registrationUrl;
+    try { registrationUrl = registrationUrlOf(event.registrationUrl); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
     const id = `happening-${randomUUID()}`;
     const company = await companyById(db, req.accountId);
-    const data = { ...event, id, organizer: company.company_name, organizerId: company.id, source: 'Community', createdByUser: true, registeredCount: 0 };
+    const data = { ...event, registrationUrl, id, organizer: company.company_name, organizerId: company.id, source: 'Community', createdByUser: true, registeredCount: 0 };
     await db.execute("INSERT INTO events (id, company_id, data_json, status) VALUES (?, ?, ?, 'pending')", [id, req.accountId, JSON.stringify(data)]);
     res.status(201).json({ event: { ...data, status: 'pending' } });
   });
@@ -837,6 +849,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     if (!title || !organizer || !venue || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() - 86_400_000) return fail(res, 400, 'Add an event name, organiser, venue and a current or future date.');
     if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) return fail(res, 400, 'Enter a valid 10-digit contact number.');
     if (image && !/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) return fail(res, 400, 'Use an HTTPS image URL or upload an image.');
+    let registrationUrl;
+    try { registrationUrl = registrationUrlOf(input.registrationUrl); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
     if (image.startsWith('/api/editorial/images/')) {
       const [[savedImage]] = await db.execute('SELECT id FROM editorial_images WHERE id = ?', [image.split('/').at(-1)]);
       if (!savedImage) return fail(res, 400, 'Upload the image again.');
@@ -846,7 +861,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const data = { id, title, organizer, venue, location: String(input.location || '').trim().slice(0, 120), date: date.toISOString(), time: String(input.time || '').trim().slice(0, 20),
       category: String(input.category || 'Community').trim().slice(0, 80), sector: String(input.sector || '').trim().slice(0, 80),
       specialty: String(input.specialty || '').trim().slice(0, 80), description: String(input.description || '').trim().slice(0, 1200),
-      contactPhone, image, source: 'Hapzo360', createdByUser: true, createdByAdmin: true, registeredCount: 0 };
+      contactPhone, image, registrationUrl, source: 'Hapzo360', createdByUser: true, createdByAdmin: true, registeredCount: 0 };
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();

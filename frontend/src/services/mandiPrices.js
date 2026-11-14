@@ -1,10 +1,8 @@
 import API_BASE_URL from '../config/api';
 
-// In production Netlify rewrites this path to its server-side function. During
-// local development, keep using the configured API proxy/backend.
-const PRICES_URL = import.meta.env.PROD
-  ? '/api/prices'
-  : `${API_BASE_URL}/api/prices`;
+// Route price requests through the configured backend. This works on Hostinger
+// and avoids the former Netlify-only /api/prices function rewrite.
+const PRICES_URL = API_BASE_URL ? `${API_BASE_URL}/api/prices` : '/api/prices';
 const DATA_GOV_API_KEY = import.meta.env.VITE_DATA_GOV_IN_API_KEY?.trim();
 const AGMARKNET_RESOURCE_ID = import.meta.env.VITE_AGMARKNET_RESOURCE_ID?.trim();
 
@@ -63,13 +61,6 @@ function normalizeCommodity(record, index) {
 }
 
 async function getDirectDataGovPrices({ category, location, search, signal }) {
-  
-  console.log('key len:', DATA_GOV_API_KEY?.length,
-  'start:', DATA_GOV_API_KEY?.slice(0, 4),
-  'end:', DATA_GOV_API_KEY?.slice(-4));
-console.log('resource len:', AGMARKNET_RESOURCE_ID?.length,
-  'start:', AGMARKNET_RESOURCE_ID?.slice(0, 4));
-
   const params = new URLSearchParams({
     'api-key': DATA_GOV_API_KEY,
     format: 'json',

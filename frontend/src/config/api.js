@@ -3,7 +3,10 @@ const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().repla
 const normalizedConfiguredBaseUrl = configuredBaseUrl
   ? (/^https?:\/\//i.test(configuredBaseUrl) ? configuredBaseUrl : `https://${configuredBaseUrl}`)
   : '';
-const productionFallbackUrl = 'https://hapzo360.onrender.com';
+// The production API runs behind the Hostinger VPS reverse proxy. Keep a
+// configurable VITE_API_BASE_URL for future custom API domains, but never
+// silently fall back to the retired Render service.
+const productionFallbackUrl = 'https://srv2149512.hstgr.cloud';
 
 // Netlify build variables override .env files. Ignore masked placeholders and
 // use the app's production API if the configured value is missing or masked.

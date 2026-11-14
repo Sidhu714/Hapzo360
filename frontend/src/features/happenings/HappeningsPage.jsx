@@ -472,7 +472,7 @@ function normalizeAngle(angle) {
   return ((angle + 180) % 360 + 360) % 360 - 180;
 }
 
-const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
+const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', registrationUrl: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
 
 /* ---------- Main component ---------- */
 export default function Happening() {
@@ -978,7 +978,7 @@ export default function Happening() {
     const displayTime = hasTime ? `${hour12}:${String(minute).padStart(2, '0')} ${form.timePeriod}` : '';
     const newEvent = {
       id: `happening-${id}`, title: form.title.trim(), date: new Date(`${form.date}T${time24}:00+05:30`).toISOString(),
-      time: displayTime, venue: form.venue.trim(), contactPhone: form.contactPhone, category: form.category, sector: form.sector, specialty: form.specialty, description: form.description.trim(), image: form.image,
+      time: displayTime, venue: form.venue.trim(), contactPhone: form.contactPhone, registrationUrl: form.registrationUrl.trim(), category: form.category, sector: form.sector, specialty: form.specialty, description: form.description.trim(), image: form.image,
       registeredCount: 0, source: 'Community', createdByUser: true, organizer: eventOwner?.name || '', organizerId: eventOwner?.id || '',
       hasVerificationClip: true
     };
@@ -1437,15 +1437,23 @@ export default function Happening() {
 
               {!selectedEvent.scraped && !company && (
                 <div className="mt-7 rounded-2xl border border-[#0b1220]/10 bg-white p-4">
-                  <button
-                    type="button"
-                    onClick={() => registerForEvent(selectedEvent)}
-                    disabled={selectedEventIsRegistered}
-                    className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm disabled:bg-[#dce6d4] disabled:text-[#315844]`}
-                  >
-                    {selectedEventIsRegistered ? 'You’re registered' : 'Register for this event'}
-                  </button>
-                  <p className="mt-2 text-center text-xs leading-5 text-[#0b1220]/50">Registration is saved to this browser for your Hapzo account.</p>
+                  {selectedEvent.registrationUrl ? (
+                    <a href={selectedEvent.registrationUrl} className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
+                      Register for this event <ArrowUpRight size={16} />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => registerForEvent(selectedEvent)}
+                      disabled={selectedEventIsRegistered}
+                      className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm disabled:bg-[#dce6d4] disabled:text-[#315844]`}
+                    >
+                      {selectedEventIsRegistered ? 'You’re registered' : 'Register for this event'}
+                    </button>
+                  )}
+                  <p className="mt-2 text-center text-xs leading-5 text-[#0b1220]/50">
+                    {selectedEvent.registrationUrl ? 'You will be redirected to the organiser’s registration form.' : 'Registration is saved to this browser for your Hapzo account.'}
+                  </p>
                 </div>
               )}
 
