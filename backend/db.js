@@ -78,12 +78,17 @@ export async function initializeDatabase(db) {
       FOREIGN KEY (person_id) REFERENCES people(id)
     )`,
     `CREATE TABLE IF NOT EXISTS event_external_registrations (
-      id CHAR(36) PRIMARY KEY, event_id VARCHAR(100) NOT NULL, event_key CHAR(64) NOT NULL, event_title VARCHAR(255) NOT NULL,
+      id CHAR(36) PRIMARY KEY, event_id VARCHAR(100) NOT NULL, event_key CHAR(64) NOT NULL, event_title VARCHAR(255) NOT NULL, person_id CHAR(36) NULL,
       attendee_name VARCHAR(100) NULL, attendee_email VARCHAR(254) NOT NULL, attendee_phone VARCHAR(10) NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       UNIQUE KEY one_external_registration (event_key, attendee_email), INDEX external_registration_event (event_key),
       INDEX external_registration_event_id (event_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS event_registration_profiles (
+      person_id CHAR(36) PRIMARY KEY, email VARCHAR(254) NOT NULL, phone VARCHAR(10) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
     )`,
     `CREATE TABLE IF NOT EXISTS payments (
       id CHAR(36) PRIMARY KEY, company_id CHAR(36) NOT NULL, kind VARCHAR(32) NOT NULL,
@@ -180,6 +185,8 @@ export async function initializeDatabase(db) {
   if (!externalPhoneColumns.length) await db.query('ALTER TABLE event_external_registrations ADD COLUMN attendee_phone VARCHAR(10) NULL AFTER attendee_email');
   const [externalPasswordColumns] = await db.query("SHOW COLUMNS FROM event_external_registrations LIKE 'password_hash'");
   if (!externalPasswordColumns.length) await db.query('ALTER TABLE event_external_registrations ADD COLUMN password_hash VARCHAR(255) NULL AFTER attendee_phone');
+  const [externalPersonColumns] = await db.query("SHOW COLUMNS FROM event_external_registrations LIKE 'person_id'");
+  if (!externalPersonColumns.length) await db.query('ALTER TABLE event_external_registrations ADD COLUMN person_id CHAR(36) NULL AFTER event_title');
   await db.query('DELETE FROM sessions WHERE expires_at <= UTC_TIMESTAMP(3)');
   await db.query('DELETE FROM people_email_codes WHERE expires_at <= UTC_TIMESTAMP(3)');
   await db.query('DELETE FROM company_email_codes WHERE expires_at <= UTC_TIMESTAMP(3)');

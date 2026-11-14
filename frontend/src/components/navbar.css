@@ -254,6 +254,83 @@
   border-radius: 12px;
 }
 
+/* The desktop language pills are too wide beside the logo, account, and menu
+   controls on phones. Keep every language available through a small menu. */
+.language-switcher-desktop {
+  display: inline-flex;
+}
+
+.language-switcher-mobile {
+  display: none;
+  position: relative;
+}
+
+.language-switcher-mobile-trigger {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 999px;
+  color: #315844;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.language-switcher-mobile-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  min-width: 108px;
+  overflow: hidden;
+  padding: 4px;
+  border: 1px solid #dbe3d7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 30px rgb(24 43 39 / 18%);
+}
+
+.language-switcher-mobile-menu button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #405246;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.language-switcher-mobile-menu button:hover,
+.language-switcher-mobile-menu .language-switcher-active {
+  color: #fff;
+  background: #315844;
+}
+
+.language-switcher--dark .language-switcher-mobile-trigger {
+  color: #fff;
+}
+
+.language-switcher--dark .language-switcher-mobile-menu {
+  border-color: rgb(255 255 255 / 20%);
+  background: #182b27;
+}
+
+.language-switcher--dark .language-switcher-mobile-menu button {
+  color: rgb(255 255 255 / 86%);
+}
+
+.navbar--happenings .language-switcher-mobile-menu button:hover,
+.navbar--happenings .language-switcher-mobile-menu .language-switcher-active {
+  background: #1f46c9;
+}
+
 
 /* Responsive spacing */
 
@@ -270,8 +347,57 @@
 }
 
 @media (max-width: 767px) {
+  .navbar-main-row {
+    height: 64px !important;
+    min-height: 64px !important;
+    gap: 8px !important;
+    padding-inline: 12px !important;
+  }
+
+  .navbar-main-row .navbar-brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .navbar-main-row .logo-wordmark {
+    min-width: 0;
+    font-size: clamp(18px, 5vw, 22px);
+  }
+
+  .navbar-main-row .logo-wordmark-image {
+    max-width: min(100px, 28vw);
+  }
+
+  .navbar-main-row .navbar-brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+
+  .navbar-main-row > .flex:last-child {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  .navbar-account-button {
+    width: 36px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .language-switcher-desktop {
+    display: none;
+  }
+
+  .language-switcher-mobile {
+    display: block;
+  }
+
+  .language-switcher {
+    padding: 0;
+  }
+
   .navbar--home .home-navbar-inner {
-    min-height: 74px;
+    min-height: 64px;
   }
 
   .navbar--home .home-navbar-toggle {
@@ -288,7 +414,7 @@
   }
 
   .navbar--home .home-navbar-actions {
-    gap: 8px;
+    gap: 4px;
   }
 }
 
@@ -317,6 +443,33 @@
 
   .navbar--home .home-navbar-language {
     padding: 0;
+  }
+
+  .navbar-main-row {
+    padding-inline: 9px !important;
+    gap: 5px !important;
+  }
+
+  .navbar-main-row .navbar-brand {
+    gap: 3px;
+  }
+
+  .navbar-main-row .navbar-brand-mark {
+    width: 27px;
+    height: 27px;
+  }
+
+  .navbar-main-row .logo-wordmark {
+    font-size: 17px;
+  }
+
+  .navbar-main-row .logo-wordmark-image {
+    max-width: 76px;
+  }
+
+  .language-switcher-mobile-trigger {
+    padding-inline: 6px;
+    font-size: 11px;
   }
 }
 

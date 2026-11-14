@@ -431,7 +431,7 @@ function TrendsHero({ articles, loading }) {
           <h1 className="mt-5 max-w-2xl text-4xl font-extrabold leading-[1.05] tracking-[-.05em] text-white sm:text-5xl lg:text-6xl">
             India’s industries are changing.
             <br />
-            <span className="font-medium italic text-[#ff8fb3]">Stay ahead.</span>
+            <span className="font-extrabold italic text-[#ff8fb3] sm:font-medium">Stay ahead.</span>
           </h1>
 
           <p className="mt-4 max-w-xl text-sm leading-7 text-white/75 sm:text-base">

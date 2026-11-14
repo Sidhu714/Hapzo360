@@ -186,7 +186,7 @@ export default function Navbar() {
       className={`sticky top-0 z-40 border-b backdrop-blur-xl ${headerTheme}`}
     >
       <div
-        className={`mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 px-4 ${
+        className={`navbar-main-row mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 px-4 ${
           useHomepageNavbar ? 'home-navbar-inner' : ''
         }`}
       >
@@ -215,7 +215,7 @@ export default function Navbar() {
           </div>
 
           <div className="relative">
-            <button type="button" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen} aria-label="Account options" className={`inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition ${isDarkPage ? 'text-white hover:bg-white/10' : 'text-[#315844] hover:bg-[#eaf1df]'}`}>
+            <button type="button" onClick={() => setAccountOpen((value) => !value)} aria-expanded={accountOpen} aria-label="Account options" className={`navbar-account-button inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition ${isDarkPage ? 'text-white hover:bg-white/10' : 'text-[#315844] hover:bg-[#eaf1df]'}`}>
               <UserRound size={17} aria-hidden="true" /><span className="hidden sm:inline">{person ? person.name.split(' ')[0] : company ? company.companyName.split(' ')[0] : 'Account'}</span>
             </button>
             {accountOpen && (

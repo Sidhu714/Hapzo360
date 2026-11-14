@@ -153,7 +153,7 @@ header .logo-wordmark { font-family: "Ethnocentric", "Archivo Black", "Plus Jaka
 @media (max-width: 640px) { .page-shell { width: min(100% - 26px, 1180px); } .page-hero { border-radius: 22px; } }
 .hapzo-footer a span:last-child { color: #f7f8f2; }
 .hapzo-footer a:hover { color: #d4e99b; }
-.language-switcher { border: 1px solid #e2e8da; background: #f0f3eb; }
+.language-switcher { display: inline-flex; border: 1px solid #e2e8da; border-radius: 999px; background: #f0f3eb; }
 
 .goog-te-banner-frame, .skiptranslate > iframe, #goog-gt-tt, .goog-te-balloon-frame,
 .VIpgJd-ZVi9od-ORHb-OEVmcd, .VIpgJd-ZVi9od-aZ2wEe-wOHMyf { display: none !important; }

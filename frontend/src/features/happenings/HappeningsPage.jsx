@@ -5,7 +5,7 @@ import { CalendarDays, MapPin, Search, Sparkles, Clock3, ArrowUpRight, Plus, X, 
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import AddEventModal from './AddEventModal';
 import EventEditModal from './EventEditModal';
-import { listCommunityEvents, listMyCompanyEvents, listMyEventRegistrations, publishCommunityEvent, updateCommunityEvent, deleteCommunityEvent, registerForCommunityEvent, registerForExternalEvent, uploadVerificationClip } from './eventsApi';
+import { listCommunityEvents, listMyCompanyEvents, listMyEventRegistrations, publishCommunityEvent, updateCommunityEvent, deleteCommunityEvent, registerForCommunityEvent, registerForExternalEvent, continueExternalEventRegistration, uploadVerificationClip } from './eventsApi';
 import { usePeopleAuth } from '../../context/PeopleAuthContext';
 import { useCompanyAuth } from '../../context/CompanyAuthContext';
 import { DISTRICTS } from '../../data/indiaLocations';
@@ -208,6 +208,15 @@ const STYLES = `
 .ev-atmosphere{position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(31,70,201,.07),transparent 55%)}
 .ev-event-card{border-radius:20px;background-clip:padding-box;box-shadow:0 1px 2px rgba(11,18,32,.05),0 10px 28px -14px rgba(11,18,32,.16)}
 .ev-event-card:hover{box-shadow:0 1px 2px rgba(11,18,32,.06),0 18px 38px -16px rgba(11,18,32,.22)}
+
+/* Keep the moving illustration calm behind the compact mobile hero copy. */
+@media (max-width:639px){
+  .ev-event-pulse{opacity:.46;filter:brightness(.78) saturate(.7)}
+  .ev-grid{opacity:.58}
+  .ev-atmosphere{background:radial-gradient(ellipse at 50% -10%,rgba(31,70,201,.035),transparent 55%)}
+  .ev-hero-title{text-shadow:0 1px 0 rgba(255,255,255,.9),0 0 22px rgba(245,246,248,.96)}
+  .ev-hero-copy{color:rgba(11,18,32,.88)!important;text-shadow:0 0 16px rgba(245,246,248,.98)}
+}
 
 .ev-tape{overflow:hidden;border-block:1px solid rgba(11,18,32,.14);background:#0b1220;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
 .ev-tape-track{display:flex;width:max-content;animation:ev-marquee 80s linear infinite}
@@ -509,6 +518,7 @@ export default function Happening() {
   const [externalRegistrationForm, setExternalRegistrationForm] = useState(EMPTY_EXTERNAL_REGISTRATION);
   const [externalRegistrationBusy, setExternalRegistrationBusy] = useState(false);
   const [externalRegistrationError, setExternalRegistrationError] = useState('');
+  const [eventRegistrationSessionReady, setEventRegistrationSessionReady] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
@@ -561,6 +571,10 @@ export default function Happening() {
     return listMyCompanyEvents().then(setMyCompanyEvents).catch((error) => setToast(error.message || 'Could not load your happenings.'));
   }, [company?.id]);
   useEffect(() => { refreshMyCompanyEvents(); }, [refreshMyCompanyEvents]);
+
+  useEffect(() => {
+    setEventRegistrationSessionReady(false);
+  }, [person?.id]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -939,6 +953,38 @@ export default function Happening() {
     setExternalRegistrationError('');
     setExternalRegistrationEvent(null);
   }, [externalRegistrationBusy]);
+  const recordExternalRegistration = useCallback((eventId) => {
+    const increaseRegistrationCount = (item) => eventIdentity(item) === eventId ? { ...item, registeredCount: registrationCount(item) + 1 } : item;
+    setSelectedEvent((current) => current ? increaseRegistrationCount(current) : current);
+    setCommunityEvents((current) => current.map(increaseRegistrationCount));
+  }, []);
+  const continueToExternalRegistration = useCallback(async (event) => {
+    const registrationWindow = window.open('', '_blank');
+    if (registrationWindow) registrationWindow.opener = null;
+    setExternalRegistrationBusy(true);
+    try {
+      const eventId = eventIdentity(event);
+      const result = await continueExternalEventRegistration(eventId);
+      if (registrationWindow && !registrationWindow.closed) registrationWindow.location.replace(result.registrationUrl);
+      else window.open(result.registrationUrl, '_blank', 'noopener,noreferrer');
+      recordExternalRegistration(eventId);
+      setToast('The organiser’s registration form opened in a new tab.');
+    } catch (error) {
+      if (registrationWindow && !registrationWindow.closed) registrationWindow.close();
+      setToast(error.message || 'Could not continue to the organiser’s registration form.');
+    } finally { setExternalRegistrationBusy(false); }
+  }, [recordExternalRegistration]);
+  const startExternalRegistration = useCallback((event) => {
+    if (company) return;
+    requestPeopleAuth({
+      purpose: 'eventRegistration',
+      action: { type: 'externalEventRegistration', eventId: eventIdentity(event), eventTitle: event.title || event.name },
+      onAuthenticated: () => {
+        if (eventRegistrationSessionReady) continueToExternalRegistration(event);
+        else openExternalRegistration(event);
+      },
+    });
+  }, [company, requestPeopleAuth, eventRegistrationSessionReady, continueToExternalRegistration, openExternalRegistration]);
   const submitExternalRegistration = async (event) => {
     event.preventDefault();
     const email = externalRegistrationForm.email.trim().toLowerCase();
@@ -957,9 +1003,8 @@ export default function Happening() {
       if (registrationWindow && !registrationWindow.closed) registrationWindow.location.replace(result.registrationUrl);
       else window.open(result.registrationUrl, '_blank', 'noopener,noreferrer');
       const eventId = eventIdentity(externalRegistrationEvent);
-      const increaseRegistrationCount = (item) => eventIdentity(item) === eventId ? { ...item, registeredCount: registrationCount(item) + 1 } : item;
-      setSelectedEvent((current) => current ? increaseRegistrationCount(current) : current);
-      setCommunityEvents((current) => current.map(increaseRegistrationCount));
+      recordExternalRegistration(eventId);
+      setEventRegistrationSessionReady(true);
       setExternalRegistrationEvent(null);
       setToast('Your details were saved. The organiser’s registration form opened in a new tab.');
     } catch (error) {
@@ -1101,7 +1146,13 @@ export default function Happening() {
       const event = allEvents.find((item) => eventIdentity(item) === action.eventId) || { id: action.eventId, title: action.eventTitle };
       registerForEvent(event);
     }
-  }, [location.state, location.pathname, location.search, company, person, allEvents, navigate, openAddForCompany, registerForEvent]);
+    if (action.type === 'externalEventRegistration' && person && !company) {
+      resumedAuthActionRef.current = action;
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      const event = allEvents.find((item) => eventIdentity(item) === action.eventId) || { id: action.eventId, title: action.eventTitle };
+      openExternalRegistration(event);
+    }
+  }, [location.state, location.pathname, location.search, company, person, allEvents, navigate, openAddForCompany, registerForEvent, openExternalRegistration]);
 
   const scrollToEvents = () => document.getElementById('events-list')?.scrollIntoView({ behavior: 'smooth' });
   const dayLabel = dayFilter ? formatDate(dayFilter) : '';
@@ -1123,7 +1174,7 @@ export default function Happening() {
             </Reveal>
 
             <Reveal delay={80}>
-              <h1 className="max-w-3xl text-[2.9rem] font-black leading-[1] tracking-[-0.065em] sm:text-7xl lg:text-[88px]">
+              <h1 className="ev-hero-title max-w-3xl text-[2.9rem] font-black leading-[1] tracking-[-0.065em] sm:text-7xl lg:text-[88px]">
                 Good things
                 <br />
                 are happening<span className="text-[#1f46c9]">.</span>
@@ -1131,7 +1182,7 @@ export default function Happening() {
             </Reveal>
 
             <Reveal delay={160}>
-              <p className="mt-6 max-w-lg text-base leading-7 text-[#0b1220]/75 sm:text-lg">
+              <p className="ev-hero-copy mt-6 max-w-lg text-base leading-7 text-[#0b1220]/75 sm:text-lg">
                 Discover the people, places and experiences happening in {district}.
                 Your next favourite memory might be just around the corner.
               </p>
@@ -1483,7 +1534,7 @@ export default function Happening() {
               {!selectedEvent.scraped && !company && (
                 <div className="mt-7 rounded-2xl border border-[#0b1220]/10 bg-white p-4">
                   {selectedEvent.registrationUrl ? (
-                    <button type="button" onClick={() => openExternalRegistration(selectedEvent)} className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
+                    <button type="button" onClick={() => startExternalRegistration(selectedEvent)} disabled={externalRegistrationBusy} className={`${btnPrimary} w-full justify-center px-6 py-3.5 text-sm`}>
                       Register for this event <ArrowUpRight size={16} />
                     </button>
                   ) : (

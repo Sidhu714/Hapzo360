@@ -356,5 +356,5 @@ export default function EventPulse({ stages = STAGES }) {
     };
   }, [stages]);
 
-  return <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 h-full w-full" />;
+  return <canvas ref={canvasRef} aria-hidden="true" className="ev-event-pulse pointer-events-none fixed inset-0 z-0 h-full w-full" />;
 }

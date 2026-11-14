@@ -683,7 +683,7 @@ export default function PriceList() {
             <h1 className="mt-7 max-w-3xl text-5xl font-extrabold leading-[1.04] tracking-[-.055em] text-white sm:text-6xl lg:text-7xl">
               Know the price.
               <br />
-              <span className="font-medium italic text-[#ffafd1]">Make better moves.</span>
+              <span className="font-extrabold italic text-[#ffafd1] sm:font-medium">Make better moves.</span>
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-8 text-white/75">
