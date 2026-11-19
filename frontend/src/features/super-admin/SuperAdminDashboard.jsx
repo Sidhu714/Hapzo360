@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Building2, CalendarDays, BriefcaseBusiness, Cpu, LogOut, Newspaper, Trash2, Users, X, Pencil } from 'lucide-react';
+import { Building2, CalendarDays, BriefcaseBusiness, Cpu, LogOut, Newspaper, RefreshCw, Trash2, Users, X, Pencil } from 'lucide-react';
 import { Logo } from '../../components/Navbar';
 import AdminOverviewCharts from './AdminOverviewCharts';
 import AdminContentInsights from './AdminContentInsights';
@@ -11,7 +11,7 @@ import JobEditModal from './JobEditModal';
 import AdminOpeningForm from './AdminOpeningForm';
 import SuperAdminReadOnlyOverview from './SuperAdminReadOnlyOverview';
 import SuperAdminMetricPage from './SuperAdminMetricPage';
-import { deleteAdminListing, deleteAdminCompany, deleteAdminPerson, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminJobApplications, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, uploadEditorialImage, logoutAdmin, updateAdminCompany, updateAdminEvent, updateAdminJob, updateAdminPerson } from './adminApi';
+import { deleteAdminListing, deleteAdminCompany, deleteAdminPerson, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminJobApplications, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, restoreAdminJob, uploadEditorialImage, logoutAdmin, updateAdminCompany, updateAdminEvent, updateAdminJob, updateAdminPerson } from './adminApi';
 
 const sections = [
   { key: 'people', title: 'People', description: 'Individual accounts and activity', icon: Users },
@@ -24,13 +24,16 @@ const menuSections = [...sections,
   { key: 'technology', title: 'Technologies', icon: Cpu },
 ];
 
-function ReviewHistory({ history = [] }) {
-  if (!history.length) return null;
+function ReviewHistory({ history = [], restoresOnly = false }) {
+  const latestRestores = history.filter((review) => review.decision === 'restore').slice(0, 2);
+  const latestApproval = history.find((review) => review.decision === 'approve');
+  const displayedHistory = restoresOnly ? [...latestRestores, ...(latestApproval ? [latestApproval] : [])] : history;
+  if (!displayedHistory.length) return null;
   return <div className="mt-4 rounded-xl border border-[#d9e4d7] bg-[#f7faf4] p-3">
     <p className="text-xs font-extrabold uppercase tracking-wide text-[#52705b]">Review history</p>
     <ol className="mt-2 space-y-2">
-      {history.map((review, index) => <li key={`${review.reviewedAt}-${index}`} className="text-xs leading-5 text-[#51645a]">
-        <span className={`font-bold ${review.decision === 'reject' ? 'text-[#a43732]' : 'text-[#315844]'}`}>{review.decision === 'reject' ? 'Rejected' : 'Approved'}</span>
+      {displayedHistory.map((review, index) => <li key={`${review.reviewedAt}-${index}`} className="text-xs leading-5 text-[#51645a]">
+        <span className={`font-bold ${review.decision === 'reject' ? 'text-[#a43732]' : 'text-[#315844]'}`}>{review.decision === 'reject' ? 'Rejected' : review.decision === 'restore' ? 'Restored & published' : 'Approved'}</span>
         {' by '}<span className="font-bold text-[#19342a]">{review.reviewerUsername}</span>
         {review.reviewedAt && <> · {new Date(review.reviewedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</>}
         {review.reason && <p className="mt-0.5 text-[#8e3b34]">Reason: {review.reason}</p>}
@@ -213,7 +216,7 @@ function AdminManagementDashboard({ mode, session }) {
     setActionModal({ type: 'review', kind, item, decision });
   };
 
-  const confirmAction = async () => {
+  const confirmAction = async (restoreExpiry = {}) => {
     if (!actionModal) return;
     const { item, kind, decision, type } = actionModal;
     if (type === 'review' && decision === 'reject' && !reviewReason.trim()) { setModalError('Add a reason for rejection.'); return; }
@@ -226,9 +229,15 @@ function AdminManagementDashboard({ mode, session }) {
         setNotice('Story deleted from the public feed.');
       } else if (type === 'delete-listing') {
         await deleteAdminListing(kind, item.id);
-        setRecords((current) => current.filter((record) => record.id !== item.id));
+        if (kind === 'jobs' && selected === 'jobs') setRecords(await getAdminCollection('jobs'));
+        else setRecords((current) => current.filter((record) => record.id !== item.id));
         await refreshAdmin();
         setNotice(`${kind === 'jobs' ? 'Opening' : 'Happening'} removed from public listings.`);
+      } else if (type === 'restore-listing') {
+        await restoreAdminJob(item.id, restoreExpiry);
+        await refreshAdmin();
+        if (selected === 'jobs') setRecords(await getAdminCollection('jobs'));
+        setNotice('Opening restored and published with the selected listing expiry.');
       } else if (type === 'delete-person') {
         await deleteAdminPerson(item.id);
         setRecords((current) => current.filter((record) => record.id !== item.id));
@@ -379,7 +388,7 @@ function AdminManagementDashboard({ mode, session }) {
   return <main className="min-h-screen bg-[#eef3e9] text-[#19342a]">
     <header className="navbar--home border-b border-[#d7e3d5] text-[#20372a]">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5">
-        <div className="flex items-center gap-4"><Logo /><span className="border-l border-[#d7e3d5] pl-4 text-xs font-semibold text-[#52705b]">Admin</span></div>
+        <div className="flex items-center gap-4"><Logo /><span className="border-l border-[#d7e3d5] pl-4 text-xs font-semibold text-[#52705b]">{session.role === 'super_admin' ? 'Super Admin' : 'Admin'}</span></div>
         <div className="flex items-center gap-4 text-sm"><span className="max-w-[180px] truncate text-[#52705b]">{session.username}</span><button type="button" onClick={signOut} disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-[#d7e3d5] px-3 py-2 font-semibold hover:bg-[#e9eee5]"><LogOut size={15} /> Sign out</button></div>
       </div>
     </header>
@@ -416,21 +425,23 @@ function AdminManagementDashboard({ mode, session }) {
         {visibleRecords.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleRecords.map((item) => <article key={item.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 text-sm shadow-sm">
           <span className="text-xs font-bold uppercase tracking-wide text-[#66806c]">{sections.find((section) => section.key === selected)?.title}</span>
           {selected === 'people' ? <dl className="mt-4 grid gap-3 rounded-xl border border-[#e4ece0] bg-[#f9fbf7] p-4"><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Name</dt><dd className="mt-1 break-words text-base font-extrabold text-[#19342a]">{item.name || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Email ID</dt><dd className="mt-1 break-all text-[#43584b]">{item.email || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">WhatsApp number</dt><dd className="mt-1 break-all font-semibold text-[#43584b]">{item.phone ? `+91 ${item.phone}` : 'Not provided'}</dd></div></dl> : <><h3 className="mt-2 break-words text-base font-extrabold">{item.name || item.companyName || item.title || 'Untitled'}</h3><p className="mt-2 break-words text-[#64736a]">{item.email || item.phone || item.location || item.venue || ''}</p></>}
-          {item.createdByAdmin && <p className="mt-2 text-xs font-semibold text-[#315844]">Published by admin {item.creatorUsername}</p>}
-          {item.status && <span className="mt-3 inline-block rounded-full bg-[#eef3e9] px-3 py-1 text-xs font-bold capitalize">{item.status}</span>}
-          {selected === 'jobs' && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#d9e4d7] bg-[#f7faf4] px-3 py-2.5"><span className="text-sm font-bold text-[#315844]">{Number(item.applicationCount || 0)} applied</span><button type="button" onClick={() => openJobApplications(item)} className="text-xs font-bold text-[#315844] underline underline-offset-2 hover:text-[#244936]">View details</button></div>}
-          {(selected === 'jobs' || selected === 'events') && <ReviewHistory history={item.reviewHistory} />}
+          {item.createdByAdmin && selected !== 'jobs' && <p className="mt-2 text-xs font-semibold text-[#315844]">Published by admin {item.creatorUsername}</p>}
+          {item.status && <span className={`mt-3 inline-block rounded-full px-3 py-1 text-xs font-bold capitalize ${item.isDeleted ? 'bg-red-50 text-[#a43732]' : item.isExpired ? 'bg-amber-50 text-amber-800' : 'bg-[#eef3e9]'}`}>{item.isDeleted ? 'Deleted' : item.isExpired ? 'Expired' : item.status}</span>}
+          {selected === 'jobs' && item.expiresAt && <p className="mt-2 text-xs font-medium text-[#64736a]">{item.isDeleted ? 'Last scheduled expiry' : 'Public listing ends'} {new Date(item.expiresAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
+          {selected === 'jobs' && !item.isDeleted && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#d9e4d7] bg-[#f7faf4] px-3 py-2.5"><span className="text-sm font-bold text-[#315844]">{Number(item.applicationCount || 0)} applied</span><button type="button" onClick={() => openJobApplications(item)} className="text-xs font-bold text-[#315844] underline underline-offset-2 hover:text-[#244936]">View details</button></div>}
+          {(selected === 'jobs' || selected === 'events') && <ReviewHistory history={item.reviewHistory} restoresOnly={selected === 'jobs'} />}
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#ecf0e9] pt-3">
             <span className="text-xs text-[#86968a]">{item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : ''}</span>
             <div className="flex items-center gap-3">
               {selected === 'events' && item.clipAvailable && <button type="button" disabled={clipBusy} onClick={() => openClip(item.id)} className="text-xs font-bold text-[#315844] underline underline-offset-2">View clip</button>}
               {selected === 'people' && <button type="button" onClick={() => { setEditError(''); setEditingPerson(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.name}`}><Pencil size={14} /> Edit</button>}
               {selected === 'companies' && <button type="button" onClick={() => { setEditError(''); setEditingCompany(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.companyName}`}><Pencil size={14} /> Edit</button>}
-              {selected === 'jobs' && <button type="button" onClick={() => { setEditError(''); setEditingJob(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
+              {selected === 'jobs' && !item.isDeleted && <button type="button" onClick={() => { setEditError(''); setEditingJob(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
               {selected === 'events' && <button type="button" onClick={() => { setEditError(''); setEditingEvent(item); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Edit ${item.title}`}><Pencil size={14} /> Edit</button>}
+              {selected === 'jobs' && (item.isDeleted || item.isExpired) && <button type="button" onClick={() => { setModalError(''); setActionModal({ type: 'restore-listing', kind: 'jobs', item }); }} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#315844] hover:underline disabled:opacity-50" aria-label={`Restore ${item.title}`}><RefreshCw size={14} /> Restore &amp; publish</button>}
               {selected === 'people' && <button type="button" onClick={() => deletePerson(item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.name}`}><Trash2 size={14} /> Delete</button>}
               {selected === 'companies' && <button type="button" onClick={() => deleteCompany(item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.companyName}`}><Trash2 size={14} /> Delete</button>}
-              {(selected === 'jobs' || selected === 'events') && <button type="button" onClick={() => deleteListing(selected, item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.title}`}><Trash2 size={14} /> Delete</button>}
+              {(selected === 'events' || (selected === 'jobs' && !item.isDeleted)) && <button type="button" onClick={() => deleteListing(selected, item)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 text-xs font-bold text-[#a43732] hover:underline disabled:opacity-50" aria-label={`Delete ${item.title}`}><Trash2 size={14} /> Delete</button>}
             </div>
           </div>
         </article>)}</div> : <p className="mt-4 rounded-2xl border border-[#d9e4d7] bg-white p-6 text-sm text-[#6b786e] shadow-sm">No records in this section yet.</p>}

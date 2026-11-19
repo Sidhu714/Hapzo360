@@ -60,6 +60,9 @@ export async function deleteAdminListing(kind, id) {
   if (!['jobs', 'events'].includes(kind)) throw new Error('Unknown listing type.');
   return request(`/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+export async function restoreAdminJob(id, expiry) {
+  return (await request(`/jobs/${encodeURIComponent(id)}/restore`, { method: 'PATCH', body: JSON.stringify(expiry) })).job;
+}
 export async function reviewSubmission(kind, id, decision, reason = '') {
   if (!['jobs', 'events'].includes(kind)) throw new Error('Unknown review type.');
   return request(`/${kind}/${encodeURIComponent(id)}/review`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) });

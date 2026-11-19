@@ -134,6 +134,23 @@ function jobExpiry(created, days = 3) {
   return new Date(midnightUtc + Math.max(1, Number(days) || 3) * 86_400_000 - 1);
 }
 
+const ADMIN_EXPIRY_DAY_OPTIONS = new Set([1, 3, 7, 14, 30, 60, 90]);
+function adminJobExpiry(input, created = now()) {
+  const customExpiry = String(input?.expiresAt || '').trim();
+  if (customExpiry) {
+    const date = new Date(customExpiry);
+    if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now() + 60_000) {
+      throw Object.assign(new Error('Choose a future date and time for this opening to expire.'), { status: 400 });
+    }
+    if (date.getTime() > Date.now() + 366 * 86_400_000) {
+      throw Object.assign(new Error('An opening expiry can be up to one year from today.'), { status: 400 });
+    }
+    return date;
+  }
+  const days = Number(input?.expiryDays);
+  return jobExpiry(created, ADMIN_EXPIRY_DAY_OPTIONS.has(days) ? days : 3);
+}
+
 function jobPublic(row) {
   const job = parseJson(row.data_json);
   const { contactPhone, contactEmail, contactName, positions, ...safe } = job;
@@ -149,7 +166,15 @@ function jobPublic(row) {
 }
 
 function jobOwner(row) {
-  return { ...parseJson(row.data_json), id: row.id, companyId: row.company_id, createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, createdAt: iso(row.created_at), expiresAt: iso(row.expires_at), renewedAt: iso(row.renewed_at), reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '' };
+  const expiresAt = iso(row.expires_at);
+  const deletedAt = iso(row.deleted_at);
+  return {
+    ...parseJson(row.data_json), id: row.id, companyId: row.company_id,
+    createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '',
+    status: row.status, createdAt: iso(row.created_at), expiresAt, renewedAt: iso(row.renewed_at),
+    reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', deletedAt,
+    isDeleted: Boolean(deletedAt), isExpired: !deletedAt && Boolean(expiresAt) && new Date(expiresAt).getTime() <= Date.now(),
+  };
 }
 
 function eventOwner(row) {
@@ -826,6 +851,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const companyName = String(input.companyName || entries[0]?.companyName || '').trim().slice(0, 120);
     const location = String(input.location || entries[0]?.location || '').trim().slice(0, 120);
     if (!companyName || !location) return fail(res, 400, 'Add a company name and location.');
+    const expiryDays = ADMIN_EXPIRY_DAY_OPTIONS.has(Number(input.expiryDays)) ? Number(input.expiryDays) : 3;
     const normalized = [];
     for (const entry of entries) {
       const title = String(entry?.title || '').trim().slice(0, 120);
@@ -848,11 +874,13 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
       if (position && !experiences.length) return fail(res, 400, 'Select at least one experience level for each position.');
       normalized.push({ title, companyName, location, description, requirements, experience, salary, contactName, contactPhone, contactEmail,
         jobType: ['full-time', 'part-time', 'contract'].includes(entry?.jobType || input.jobType) ? (entry.jobType || input.jobType) : 'full-time',
-        positions: [{ title, experiences, remarks: String(position?.remarks || description).trim().slice(0, 5000), contactName, contactPhone }], expiryDays: 3, source: 'Hapzo360' });
+        positions: [{ title, experiences, remarks: String(position?.remarks || description).trim().slice(0, 5000), contactName, contactPhone }], expiryDays, source: 'Hapzo360' });
     }
     const createdAt = now();
     const reviewedAt = mysqlDate(new Date());
-    const expiresAt = jobExpiry(createdAt, 3);
+    let expiresAt;
+    try { expiresAt = adminJobExpiry(input, createdAt); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
@@ -909,14 +937,39 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     if (!result.affectedRows) return fail(res, 404, 'Opening not found.');
     res.json({ ok: true });
   });
+  router.patch('/admin/jobs/:id/restore', anyAdmin, async (req, res) => {
+    const [[job]] = await db.execute('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
+    if (!job) return fail(res, 404, 'Opening not found.');
+    let expiresAt;
+    try { expiresAt = adminJobExpiry(req.body || {}, now()); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
+    const restoredAt = mysqlDate(new Date());
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [[admin]] = await connection.execute('SELECT username FROM admin_users WHERE id = ?', [req.accountId]);
+      await connection.execute("UPDATE jobs SET deleted_at = NULL, status = 'active', expires_at = ?, renewed_at = ?, reviewed_at = ?, reviewed_by = ?, rejection_reason = NULL WHERE id = ?", [mysqlDate(expiresAt), restoredAt, restoredAt, req.accountId, job.id]);
+      await connection.execute('INSERT INTO moderation_reviews (id, content_type, content_id, decision, reviewer_id, reviewer_username, reviewed_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [randomUUID(), 'job', job.id, 'restore', req.accountId, admin?.username || 'Former admin', restoredAt]);
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally { connection.release(); }
+    res.json({ job: { ...jobOwner({ ...job, deleted_at: null, status: 'active', expires_at: mysqlDate(expiresAt), renewed_at: restoredAt, reviewed_at: restoredAt, reviewed_by: req.accountId, rejection_reason: null }), expiresAt: expiresAt.toISOString(), renewedAt: new Date(restoredAt).toISOString() } });
+  });
   router.patch('/admin/jobs/:id', anyAdmin, async (req, res) => {
     const [[job]] = await db.execute('SELECT * FROM jobs WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!job) return fail(res, 404, 'Opening not found.');
     let data;
     try { data = updatedJobData(req.body?.job, parseJson(job.data_json)); }
     catch (error) { return fail(res, error.status || 400, error.message); }
-    await db.execute('UPDATE jobs SET data_json = ? WHERE id = ?', [JSON.stringify(data), job.id]);
-    res.json({ job: { ...jobOwner(job), ...data } });
+    let expiresAt = new Date(job.expires_at);
+    if (Object.hasOwn(req.body?.job || {}, 'expiresAt')) {
+      try { expiresAt = adminJobExpiry({ expiresAt: req.body.job.expiresAt }); }
+      catch (error) { return fail(res, error.status || 400, error.message); }
+    }
+    await db.execute('UPDATE jobs SET data_json = ?, expires_at = ? WHERE id = ?', [JSON.stringify(data), mysqlDate(expiresAt), job.id]);
+    res.json({ job: { ...jobOwner({ ...job, expires_at: mysqlDate(expiresAt) }), ...data, expiresAt: expiresAt.toISOString() } });
   });
   router.patch('/admin/events/:id', anyAdmin, async (req, res) => {
     const [[event]] = await db.execute('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
@@ -1166,7 +1219,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } finally { connection.release(); }
   });
   router.get('/admin/jobs', anyAdmin, async (req, res) => {
-    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name, (SELECT COUNT(*) FROM applications application WHERE application.job_id = j.id) AS application_count FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id WHERE j.deleted_at IS NULL ORDER BY j.created_at DESC LIMIT 100');
+    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name, (SELECT COUNT(*) FROM applications application WHERE application.job_id = j.id) AS application_count FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id ORDER BY j.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'job', rows.map((row) => row.id));
     res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), companyName: row.company_name || parseJson(row.data_json).companyName || '', applicationCount: Number(row.application_count || 0), reviewHistory: history.get(row.id) || [] })) });
   });

@@ -28,12 +28,23 @@ const salaryFor = (position) => {
     ? unique[0] : paid.map((level) => `${level.level}: ${level.salary}`).join(' | ');
 };
 const inputClass = 'w-full rounded-xl border border-[#dfe7dd] bg-white px-4 py-3 text-sm outline-none focus:border-[#70a879] focus:ring-4 focus:ring-[#70a879]/10';
+const EXPIRY_OPTIONS = [
+  { value: '1', label: '1 day' }, { value: '3', label: '3 days' }, { value: '7', label: '7 days' },
+  { value: '14', label: '14 days' }, { value: '30', label: '30 days' }, { value: '60', label: '60 days' },
+  { value: '90', label: '90 days' }, { value: 'custom', label: 'Choose exact date & time' },
+];
+const localDateTime = (value = new Date(Date.now() + 3_600_000)) => {
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
 
 export default function AdminOpeningForm({ onCreated }) {
   const [companyName, setCompanyName] = useState('');
   const [state, setState] = useState('');
   const [district, setDistrict] = useState('');
   const [positions, setPositions] = useState([newPosition()]);
+  const [expiryChoice, setExpiryChoice] = useState('3');
+  const [customExpiryAt, setCustomExpiryAt] = useState(() => localDateTime());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -75,9 +86,15 @@ export default function AdminOpeningForm({ onCreated }) {
       };
     });
     if (jobs.some((job) => !job.description)) return setError('Add remarks for each position.');
+    let expiresAt = '';
+    if (expiryChoice === 'custom') {
+      const date = new Date(customExpiryAt);
+      if (!customExpiryAt || !Number.isFinite(date.getTime()) || date.getTime() <= Date.now() + 60_000) return setError('Choose a future date and time for this opening to expire.');
+      expiresAt = date.toISOString();
+    }
     setBusy(true);
     try {
-      await createAdminJob({ companyName: companyName.trim(), location: `${district}, ${state}`, jobs });
+      await createAdminJob({ companyName: companyName.trim(), location: `${district}, ${state}`, jobs, expiryDays: expiryChoice === 'custom' ? 3 : Number(expiryChoice), ...(expiresAt ? { expiresAt } : {}) });
       onCreated();
     } catch (cause) { setError(cause.message || 'Could not publish the openings.'); }
     finally { setBusy(false); }
@@ -86,7 +103,7 @@ export default function AdminOpeningForm({ onCreated }) {
   return <section className="max-w-5xl">
     <p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Admin publishing</p>
     <h1 className="mt-3 text-4xl font-extrabold tracking-tight">Create openings</h1>
-    <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5d6d62]">Use the same hiring details as Post a Job. Each position becomes a separate opening and goes live for three days. No payment is required.</p>
+    <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5d6d62]">Use the same hiring details as Post a Job. Each position becomes a separate opening and stays public until the expiry you choose. No payment is required.</p>
     <form onSubmit={submit} noValidate className="mt-7 rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm sm:p-7">
       <div className="mb-7 flex items-center gap-3"><span className="rounded-xl bg-[#eef3e9] p-3 text-[#315844]"><BriefcaseBusiness size={20} /></span><div><h2 className="text-xl font-extrabold">Job details</h2><p className="text-sm text-[#6b786e]">Add each position you are hiring for.</p></div></div>
       <label className="mb-5 block text-sm font-bold text-[#284436]">Company or organisation *<input required maxLength={120} value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Name shown on each opening" className={`${inputClass} mt-2`} /></label>
@@ -94,6 +111,14 @@ export default function AdminOpeningForm({ onCreated }) {
         <SearchSelect id="admin-job-state" label="Location - State *" options={STATES} selected={state ? [state] : []} onSelect={(value) => { setState(value); setDistrict(''); }} placeholder="Select state" />
         <SearchSelect id="admin-job-district" label="District *" options={DISTRICTS[state] || []} selected={district ? [district] : []} onSelect={setDistrict} placeholder={state ? 'Select or type district' : 'Select a state first'} disabled={!state} allowCustom customLabel={(value) => `Use "${value}"`} />
       </div>
+      <section className="mt-6 rounded-2xl border border-[#e1e8dc] bg-[#fbfcf9] p-4 sm:p-5">
+        <h3 className="text-base font-extrabold text-[#20372a]">Listing expiry</h3>
+        <p className="mt-1 text-sm leading-6 text-[#65736a]">The opening is automatically hidden from the public page at the selected time. It stays in Admin Openings, where you can restore it later.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-semibold text-[#284436]">Hide opening after<select value={expiryChoice} onChange={(event) => setExpiryChoice(event.target.value)} className={`${inputClass} mt-2`}>{EXPIRY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          {expiryChoice === 'custom' && <label className="text-sm font-semibold text-[#284436]">Exact expiry date &amp; time<input required type="datetime-local" min={localDateTime(new Date(Date.now() + 120_000))} value={customExpiryAt} onChange={(event) => setCustomExpiryAt(event.target.value)} className={`${inputClass} mt-2`} /></label>}
+        </div>
+      </section>
       <div className="mt-6 space-y-6">{positions.map((position, index) => <section key={position.id} className="rounded-2xl border border-[#e1e8dc] bg-[#fbfcf9] p-4 sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-[#789078]">POSITION {String(index + 1).padStart(2, '0')}</p><h3 className="mt-1 text-lg font-bold text-[#20372a]">Hiring requirements</h3></div>{positions.length > 1 && <button type="button" onClick={() => setPositions((current) => current.filter((item) => item.id !== position.id))} aria-label={`Remove position ${index + 1}`} className="rounded-full border border-red-200 p-2 text-red-600 hover:bg-red-50"><X size={16} /></button>}</div>
         <div className="grid gap-5 md:grid-cols-2">
