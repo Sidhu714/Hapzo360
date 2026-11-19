@@ -318,7 +318,7 @@ export default function OpeningsPage() {
             </div>
 
             {list.length ? (
-              <div className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 items-stretch gap-5 sm:grid-cols-2">
                 {list.map((j) => (
                   <JobCard
                     key={j.id}

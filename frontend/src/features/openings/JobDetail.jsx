@@ -19,6 +19,7 @@ export default function JobDetail({ job, onClose, onApply }) {
   const v = useTranslatedJob(publicJob);
   return (
     <Modal wide title={v.title} onClose={onClose}>
+      {job.image && <img src={job.image} alt="" className="mb-5 aspect-[16/8] w-full rounded-2xl bg-stone-100 object-cover sm:aspect-[16/7]" />}
       <div className="mb-4 flex items-center gap-3">
         <CompanyLogo job={job} size="h-12 w-12" />
         <div><p className="font-semibold text-stone-900">{job.companyName}</p><p className="text-sm text-stone-500">{v.location}</p></div>

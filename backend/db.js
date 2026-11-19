@@ -49,6 +49,7 @@ export async function initializeDatabase(db) {
       status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       expires_at DATETIME(3) NOT NULL, renewed_at DATETIME(3) NULL, deleted_at DATETIME(3) NULL,
       reviewed_at DATETIME(3) NULL, reviewed_by CHAR(36) NULL, rejection_reason VARCHAR(500) NULL,
+      display_order INT NOT NULL DEFAULT 0,
       INDEX jobs_active (status, expires_at), INDEX jobs_company (company_id),
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`,
@@ -62,7 +63,7 @@ export async function initializeDatabase(db) {
       id VARCHAR(100) PRIMARY KEY, company_id CHAR(36) NULL, created_by_admin CHAR(36) NULL, data_json JSON NOT NULL,
       created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), status VARCHAR(20) NOT NULL DEFAULT 'pending',
       reviewed_at DATETIME(3) NULL, reviewed_by CHAR(36) NULL, rejection_reason VARCHAR(500) NULL,
-      deleted_at DATETIME(3) NULL,
+      deleted_at DATETIME(3) NULL, display_order INT NOT NULL DEFAULT 0,
       INDEX events_company (company_id), INDEX events_status (status),
       FOREIGN KEY (company_id) REFERENCES companies(id)
     )`,
@@ -163,6 +164,8 @@ export async function initializeDatabase(db) {
     ['events', 'reviewed_by', 'CHAR(36) NULL'],
     ['events', 'rejection_reason', 'VARCHAR(500) NULL'],
     ['events', 'deleted_at', 'DATETIME(3) NULL'],
+    ['jobs', 'display_order', 'INT NOT NULL DEFAULT 0'],
+    ['events', 'display_order', 'INT NOT NULL DEFAULT 0'],
   ]) {
     const [columns] = await db.query(`SHOW COLUMNS FROM ${table} LIKE ?`, [column]);
     if (!columns.length) await db.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);

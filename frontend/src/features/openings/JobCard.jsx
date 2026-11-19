@@ -40,7 +40,9 @@ export default function JobCard({ job, onOpen, onApply }) {
   const v = useTranslatedJob(job, ['title', 'location']);
 
   return (
-    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-[#e3e8dc] bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#bdceb0] hover:shadow-lg hover:shadow-[#20372a]/[0.06]">
+    <article className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-[20px] border border-[#e3e8dc] bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#bdceb0] hover:shadow-lg hover:shadow-[#20372a]/[0.06] sm:p-6 ${job.image ? 'min-h-[520px] sm:min-h-[560px]' : 'min-h-[420px]'}`}>
+
+      {job.image && <div className="-mx-5 -mt-5 mb-5 h-52 overflow-hidden bg-[#eef3e9] sm:-mx-6 sm:-mt-6 sm:mb-6 sm:h-56"><img src={job.image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" /></div>}
 
       {/* Company identity */}
       <div className="flex min-w-0 items-center gap-3">

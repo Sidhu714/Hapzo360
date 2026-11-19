@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BriefcaseBusiness, Plus, X } from 'lucide-react';
 import { STATES, DISTRICTS } from '../../data/indiaLocations';
 import SearchSelect from '../openings/SearchSelect';
-import { createAdminJob } from './adminApi';
+import { createAdminJob, uploadEditorialImage } from './adminApi';
 
 const POSITION_OPTIONS = [
   'Accountant', 'Accountant Assistant', 'Admin Executive', 'Back Office Executive',
@@ -43,6 +43,10 @@ export default function AdminOpeningForm({ onCreated }) {
   const [state, setState] = useState('');
   const [district, setDistrict] = useState('');
   const [positions, setPositions] = useState([newPosition()]);
+  const [imageMode, setImageMode] = useState('upload');
+  const [imageFile, setImageFile] = useState(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [imagePreview, setImagePreview] = useState('');
   const [expiryChoice, setExpiryChoice] = useState('3');
   const [customExpiryAt, setCustomExpiryAt] = useState(() => localDateTime());
   const [busy, setBusy] = useState(false);
@@ -61,6 +65,22 @@ export default function AdminOpeningForm({ onCreated }) {
   const updateLevel = (id, level, changes) => updatePosition(id, (position) => ({
     experiences: position.experiences.map((item) => item.level === level ? { ...item, ...changes } : item),
   }));
+  useEffect(() => {
+    if (!imageFile) { setImagePreview(''); return undefined; }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+  const chooseImage = (file) => {
+    setError('');
+    if (!file) { setImageFile(null); return; }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setImageFile(null);
+      setError('Choose a JPEG, PNG or WebP image under 5 MB.');
+      return;
+    }
+    setImageFile(file);
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -94,7 +114,8 @@ export default function AdminOpeningForm({ onCreated }) {
     }
     setBusy(true);
     try {
-      await createAdminJob({ companyName: companyName.trim(), location: `${district}, ${state}`, jobs, expiryDays: expiryChoice === 'custom' ? 3 : Number(expiryChoice), ...(expiresAt ? { expiresAt } : {}) });
+      const image = imageMode === 'upload' && imageFile ? await uploadEditorialImage(imageFile) : imageMode === 'link' ? imageUrl.trim() : '';
+      await createAdminJob({ companyName: companyName.trim(), location: `${district}, ${state}`, jobs, image, expiryDays: expiryChoice === 'custom' ? 3 : Number(expiryChoice), ...(expiresAt ? { expiresAt } : {}) });
       onCreated();
     } catch (cause) { setError(cause.message || 'Could not publish the openings.'); }
     finally { setBusy(false); }
@@ -111,6 +132,12 @@ export default function AdminOpeningForm({ onCreated }) {
         <SearchSelect id="admin-job-state" label="Location - State *" options={STATES} selected={state ? [state] : []} onSelect={(value) => { setState(value); setDistrict(''); }} placeholder="Select state" />
         <SearchSelect id="admin-job-district" label="District *" options={DISTRICTS[state] || []} selected={district ? [district] : []} onSelect={setDistrict} placeholder={state ? 'Select or type district' : 'Select a state first'} disabled={!state} allowCustom customLabel={(value) => `Use "${value}"`} />
       </div>
+      <section className="mt-6 rounded-2xl border border-[#e1e8dc] bg-[#fbfcf9] p-4 sm:p-5">
+        <h3 className="text-base font-extrabold text-[#20372a]">Opening image <span className="font-normal text-sm text-[#65736a]">(optional)</span></h3>
+        <p className="mt-1 text-sm leading-6 text-[#65736a]">The same image is used for every position in this opening.</p>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Opening image source"><button type="button" onClick={() => setImageMode('upload')} className={`rounded-full px-4 py-2 text-xs font-bold ${imageMode === 'upload' ? 'bg-[#315844] text-white' : 'border border-[#b9cdb0] bg-white text-[#315844]'}`}>Upload image</button><button type="button" onClick={() => setImageMode('link')} className={`rounded-full px-4 py-2 text-xs font-bold ${imageMode === 'link' ? 'bg-[#315844] text-white' : 'border border-[#b9cdb0] bg-white text-[#315844]'}`}>Image link</button></div>
+        {imageMode === 'upload' ? <><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseImage(event.target.files?.[0])} className="mt-3 block w-full rounded-xl border border-dashed border-[#b9cdb0] bg-white p-3 text-sm" /><p className="mt-2 text-xs text-[#65736a]">JPEG, PNG or WebP · maximum 5 MB</p>{imagePreview && <img src={imagePreview} alt="Opening preview" className="mt-3 h-40 w-full rounded-xl border border-[#d9e4d7] object-cover sm:h-52" />}{imageFile && <button type="button" onClick={() => setImageFile(null)} className="mt-2 text-xs font-bold text-[#315844] underline">Remove selected image</button>}</> : <><input type="url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://example.com/opening.jpg" className={`${inputClass} mt-3`} />{imageUrl.startsWith('https://') && <img src={imageUrl} alt="Opening preview" className="mt-3 h-40 w-full rounded-xl border border-[#d9e4d7] object-cover sm:h-52" />}</>}
+      </section>
       <section className="mt-6 rounded-2xl border border-[#e1e8dc] bg-[#fbfcf9] p-4 sm:p-5">
         <h3 className="text-base font-extrabold text-[#20372a]">Listing expiry</h3>
         <p className="mt-1 text-sm leading-6 text-[#65736a]">The opening is automatically hidden from the public page at the selected time. It stays in Admin Openings, where you can restore it later.</p>

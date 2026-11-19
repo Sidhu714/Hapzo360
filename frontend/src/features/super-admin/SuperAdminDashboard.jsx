@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Building2, CalendarDays, BriefcaseBusiness, Cpu, LogOut, Newspaper, RefreshCw, Trash2, Users, X, Pencil } from 'lucide-react';
 import { Logo } from '../../components/Navbar';
@@ -11,7 +11,7 @@ import JobEditModal from './JobEditModal';
 import AdminOpeningForm from './AdminOpeningForm';
 import SuperAdminReadOnlyOverview from './SuperAdminReadOnlyOverview';
 import SuperAdminMetricPage from './SuperAdminMetricPage';
-import { deleteAdminListing, deleteAdminCompany, deleteAdminPerson, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminJobApplications, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, restoreAdminJob, uploadEditorialImage, logoutAdmin, updateAdminCompany, updateAdminEvent, updateAdminJob, updateAdminPerson } from './adminApi';
+import { deleteAdminListing, deleteAdminCompany, deleteAdminPerson, deleteEditorialPost, getAdminClip, getAdminCollection, getAdminJobApplications, getAdminOverview, getAdminSession, getPendingReviews, reviewSubmission, getEditorialPosts, publishEditorialPost, restoreAdminJob, uploadEditorialImage, logoutAdmin, updateAdminCompany, updateAdminEvent, updateAdminJob, updateAdminListingOrder, updateAdminPerson } from './adminApi';
 
 const sections = [
   { key: 'people', title: 'People', description: 'Individual accounts and activity', icon: Users },
@@ -40,6 +40,78 @@ function ReviewHistory({ history = [], restoresOnly = false }) {
       </li>)}
     </ol>
   </div>;
+}
+
+function ListingImage({ image, alt }) {
+  if (!image || typeof image !== 'string') return null;
+  return <div className="mt-4 aspect-[16/8] w-full overflow-hidden rounded-xl border border-[#d9e4d7] bg-[#eef3e9] sm:aspect-[16/7]">
+    <img
+      src={image}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={(event) => { event.currentTarget.parentElement?.remove(); }}
+    />
+  </div>;
+}
+
+function PublicListingOrder({ kind, items, busy, onPlace }) {
+  const label = kind === 'jobs' ? 'openings' : 'happenings';
+  const singular = kind === 'jobs' ? 'Opening' : 'Happening';
+  const [search, setSearch] = useState('');
+  const [movingItemId, setMovingItemId] = useState('');
+  const itemElements = useRef(new Map());
+  const pendingMove = useRef(null);
+  useEffect(() => setSearch(''), [kind]);
+  useEffect(() => () => pendingMove.current?.ghost?.remove(), []);
+  const searchTerm = search.trim().toLowerCase();
+  const matchingItems = items.map((item, index) => ({ item, index })).filter(({ item }) => !searchTerm || [item.companyName, item.organizer, item.title, item.location, item.venue].some((value) => String(value || '').toLowerCase().includes(searchTerm)));
+  const ordinal = (position) => `${position}${position === 1 ? 'st' : position === 2 ? 'nd' : position === 3 ? 'rd' : 'th'}`;
+  useLayoutEffect(() => {
+    const move = pendingMove.current;
+    if (!move) return undefined;
+    const destination = itemElements.current.get(move.id);
+    if (!destination) return undefined;
+    pendingMove.current = null;
+    const end = destination.getBoundingClientRect();
+    const finish = () => { move.ghost.remove(); setMovingItemId(''); };
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finish(); return undefined; }
+    const animation = move.ghost.animate([
+      { transform: 'translate3d(0, 0, 0)', opacity: 1 },
+      { transform: `translate3d(${end.left - move.start.left}px, ${end.top - move.start.top}px, 0)`, opacity: 1 },
+    ], { duration: 520, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' });
+    animation.onfinish = finish;
+    animation.oncancel = finish;
+    return undefined;
+  });
+  const startMove = (item, action) => {
+    const source = itemElements.current.get(item.id);
+    if (!source || busy) { action(); return; }
+    const start = source.getBoundingClientRect();
+    const ghost = source.cloneNode(true);
+    ghost.setAttribute('aria-hidden', 'true');
+    Object.assign(ghost.style, { position: 'fixed', top: `${start.top}px`, left: `${start.left}px`, width: `${start.width}px`, height: `${start.height}px`, margin: '0', zIndex: '100', pointerEvents: 'none', transformOrigin: 'top left', boxShadow: '0 16px 32px rgba(25, 52, 42, .18)' });
+    document.body.appendChild(ghost);
+    pendingMove.current?.ghost?.remove();
+    pendingMove.current = { id: item.id, start, ghost };
+    setMovingItemId(item.id);
+    action();
+  };
+  return <section className="mt-7 rounded-2xl border border-[#d9e4d7] bg-white p-4 shadow-sm sm:p-5" aria-labelledby={`${kind}-display-order-heading`}>
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div><p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#52705b]">Public display order</p><h2 id={`${kind}-display-order-heading`} className="mt-1 text-lg font-extrabold text-[#19342a]">Choose what appears first</h2></div>
+      <label className="w-full lg:w-80"><span className="mb-1 block text-xs font-bold text-[#52705b]">Find a company or post</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search company, title or location" className="w-full rounded-xl border border-[#cbd9ca] bg-white px-3 py-2.5 text-sm text-[#19342a] outline-none transition focus:border-[#315844]" /></label>
+    </div>
+    <p className="mt-3 text-xs leading-5 text-[#64736a]">Search by company, title or location, then choose its public position. Changes save immediately.</p>
+    {items.length ? <ol className="mt-4 grid gap-2" aria-label={`Public ${label} order`}>
+      {matchingItems.map(({ item, index }) => <li key={item.id} ref={(element) => { if (element) itemElements.current.set(item.id, element); else itemElements.current.delete(item.id); }} className={`grid gap-3 rounded-xl border border-[#e0e9dd] bg-[#f9fbf7] p-3 transition-opacity duration-150 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${movingItemId === item.id ? 'opacity-0' : 'opacity-100'}`}>
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#315844] text-sm font-extrabold text-white" aria-label={`Position ${index + 1}`}>{index + 1}</span>
+        <div className="min-w-0"><p className="truncate text-sm font-extrabold text-[#19342a]">{item.title || `Untitled ${singular.toLowerCase()}`}</p><p className="truncate text-xs text-[#64736a]">{kind === 'jobs' ? `${item.companyName || 'Company'} · ${item.location || 'Location not provided'}` : `${item.organizer || item.companyName || 'Organiser'} · ${item.venue || 'Venue not provided'}`}</p></div>
+        <label className="grid gap-1 text-xs font-bold text-[#52705b]"><span>Place at</span><select value={index + 1} onChange={(event) => startMove(item, () => onPlace(index, Number(event.target.value) - 1))} disabled={busy} className="min-h-10 rounded-lg border border-[#cbd9ca] bg-white px-2 text-sm font-bold text-[#19342a] disabled:opacity-50">{items.map((_, position) => <option key={position} value={position + 1}>{ordinal(position + 1)}</option>)}</select></label>
+      </li>)}</ol> : null}
+    {items.length && !matchingItems.length && <p className="mt-4 rounded-xl border border-dashed border-[#cbd9ca] p-4 text-sm text-[#64736a]">No public {label} match “{search.trim()}”.</p>}
+    {!items.length && <p className="mt-4 rounded-xl border border-dashed border-[#cbd9ca] p-4 text-sm text-[#64736a]">No approved public {label} are available to arrange yet.</p>}
+  </section>;
 }
 
 function JobApplicationsModal({ job, applications, busy, error, onClose }) {
@@ -382,6 +454,46 @@ function AdminManagementDashboard({ mode, session }) {
   const jobStatusCounts = ['approved', 'pending', 'rejected'].reduce((counts, status) => ({ ...counts, [status]: records.filter((item) => matchesSelectedJobCompany(item) && item.status === status).length }), {});
   const fetchedHappeningsCount = Number(overview?.content?.external?.happenings || 0);
   const visibleRecords = selected === 'events' ? records.filter((item) => matchesSelectedCompany(item) && (eventStatusFilter === 'all' || item.status === eventStatusFilter)) : selected === 'jobs' ? records.filter((item) => matchesSelectedJobCompany(item) && (jobStatusFilter === 'all' || item.status === jobStatusFilter)) : selected === 'companies' ? records.filter((item) => `${item.companyName || ''} ${item.email || ''} ${item.phone || ''}`.toLowerCase().includes(companySearch.trim().toLowerCase())) : records;
+  const publicListings = selected === 'jobs'
+    ? records.filter((item) => item.status === 'active' && !item.isDeleted && !item.isExpired)
+    : selected === 'events' ? records.filter((item) => item.status === 'approved') : [];
+  const savePublicListingOrder = async (reordered) => {
+    if (!['jobs', 'events'].includes(selected)) return;
+    setActionBusy(`${selected}-display-order`);
+    setLoadError('');
+    const orderById = new Map(reordered.map((item, index) => [item.id, index + 1]));
+    setRecords((current) => {
+      const originalPosition = new Map(current.map((item, index) => [item.id, index]));
+      return current.map((item) => orderById.has(item.id) ? { ...item, displayOrder: orderById.get(item.id) } : item).sort((a, b) => {
+        const aOrder = orderById.get(a.id);
+        const bOrder = orderById.get(b.id);
+        if (aOrder && bOrder) return aOrder - bOrder;
+        if (aOrder) return -1;
+        if (bOrder) return 1;
+        return originalPosition.get(a.id) - originalPosition.get(b.id);
+      });
+    });
+    try {
+      await updateAdminListingOrder(selected, reordered.map((item) => item.id));
+      setRecords(await getAdminCollection(selected));
+      setNotice(`${selected === 'jobs' ? 'Opening' : 'Happening'} public display order updated.`);
+    } catch (error) {
+      setLoadError(error.message || 'Could not update the public display order.');
+      try { setRecords(await getAdminCollection(selected)); } catch { /* Keep the local order when the refresh also fails. */ }
+    }
+    finally { setActionBusy(''); }
+  };
+  const placePublicListing = async (index, destination) => {
+    if (index === destination || destination < 0 || destination >= publicListings.length) return;
+    const reordered = [...publicListings];
+    const [listing] = reordered.splice(index, 1);
+    reordered.splice(destination, 0, listing);
+    await savePublicListingOrder(reordered);
+  };
+  const goToPublicSite = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  };
 
   if (selected && ![...sections.map((item) => item.key), 'trends', 'technology'].includes(selected)) return <Navigate to="/super-admin" replace />;
 
@@ -407,13 +519,14 @@ function AdminManagementDashboard({ mode, session }) {
       {createKind === 'events' && <AdminCreateForm kind="events" onCreated={() => navigate('/super-admin/events')} />}
       {selected && <><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Administration</p><h1 className="mt-3 text-4xl font-extrabold tracking-tight">{sections.find((item) => item.key === selected)?.title || (selected === 'trends' ? 'Trends' : 'Technologies')}</h1></>}
       {(selected === 'jobs' || selected === 'events') && <Link to={`/super-admin/${selected}/new`} className="mt-5 inline-flex rounded-xl bg-[#315844] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#244936]">Create {selected === 'jobs' ? 'opening' : 'happening'} →</Link>}
+      {(selected === 'jobs' || selected === 'events') && <PublicListingOrder kind={selected} items={publicListings} busy={actionBusy === `${selected}-display-order`} onPlace={placePublicListing} />}
       {selected === 'events' && <section className="mt-7 w-full rounded-2xl border border-[#d9e4d7] bg-white p-4 shadow-sm sm:p-5" aria-label="Happening filters"><div><h2 className="text-lg font-extrabold">Filter happenings</h2><p className="mt-1 text-sm text-[#64736a]">Choose a company to see its moderation totals.</p></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5"><label className="col-span-2 grid w-full gap-1 text-sm font-bold text-[#315844] sm:col-span-1">Company<select value={eventCompanyFilter} onChange={(event) => { setEventCompanyFilter(event.target.value); setEventStatusFilter('all'); }} className="w-full rounded-xl border border-[#cbd9ca] bg-white p-2.5 font-normal text-[#19342a]"><option value="all">All companies · {eventCompanyOptions.length} companies</option>{eventCompanyOptions.map((company) => <option key={company.id} value={company.id}>{company.name} · {company.count} happening{company.count === 1 ? '' : 's'}</option>)}</select></label>{[['approved', 'Approved'], ['pending', 'Pending'], ['rejected', 'Rejected']].map(([status, label]) => <button key={status} type="button" onClick={() => setEventStatusFilter((current) => current === status ? 'all' : status)} className={`min-h-[78px] rounded-xl border p-2.5 text-left transition ${eventStatusFilter === status ? 'border-[#315844] bg-[#315844] text-white' : 'border-[#d9e4d7] bg-[#f8fbf6] text-[#19342a] hover:border-[#88a28d]'}`} aria-pressed={eventStatusFilter === status}><span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</span><span className="mt-0.5 block text-xl font-extrabold">{eventStatusCounts[status]}</span></button>)}<div className="min-h-[78px] rounded-xl border border-[#c9dcbf] bg-[#f3f9ef] p-2.5 text-left"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#52705b]">Internet fetched</span><span className="mt-0.5 block text-xl font-extrabold text-[#19342a]">{fetchedHappeningsCount}</span><span className="mt-0.5 block text-[11px] leading-4 text-[#64736a]">external sources</span></div></div><p className="mt-3 text-xs text-[#64736a]">Showing {visibleRecords.length} happening{visibleRecords.length === 1 ? '' : 's'}. Click a status box to filter; click it again to clear that status filter.</p></section>}
       {selected === 'jobs' && <section className="mt-7 w-full rounded-2xl border border-[#d9e4d7] bg-white p-4 shadow-sm sm:p-5" aria-label="Opening filters"><div><h2 className="text-lg font-extrabold">Filter openings</h2><p className="mt-1 text-sm text-[#64736a]">Choose a company to see its moderation totals.</p></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3"><label className="col-span-2 grid w-full gap-1 text-sm font-bold text-[#315844] sm:col-span-1">Company<select value={jobCompanyFilter} onChange={(event) => { setJobCompanyFilter(event.target.value); setJobStatusFilter('all'); }} className="w-full rounded-xl border border-[#cbd9ca] bg-white p-2.5 font-normal text-[#19342a]"><option value="all">All companies · {jobCompanyOptions.length} companies</option>{jobCompanyOptions.map((company) => <option key={company.id} value={company.id}>{company.name} · {company.count} opening{company.count === 1 ? '' : 's'}</option>)}</select></label>{[['approved', 'Approved'], ['pending', 'Pending'], ['rejected', 'Rejected']].map(([status, label]) => <button key={status} type="button" onClick={() => setJobStatusFilter((current) => current === status ? 'all' : status)} className={`min-h-[78px] rounded-xl border p-2.5 text-left transition ${jobStatusFilter === status ? 'border-[#315844] bg-[#315844] text-white' : 'border-[#d9e4d7] bg-[#f8fbf6] text-[#19342a] hover:border-[#88a28d]'}`} aria-pressed={jobStatusFilter === status}><span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{label}</span><span className="mt-0.5 block text-xl font-extrabold">{jobStatusCounts[status]}</span></button>)}</div><p className="mt-3 text-xs text-[#64736a]">Showing {visibleRecords.length} opening{visibleRecords.length === 1 ? '' : 's'}. Click a status box to filter; click it again to clear that status filter.</p></section>}
       {selected === 'companies' && <section className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Search companies"><p className="text-xs text-[#64736a]">Showing {visibleRecords.length} of {records.length} companies.</p><label className="w-full sm:w-80"><span className="sr-only">Search companies</span><input type="search" value={companySearch} onChange={(event) => setCompanySearch(event.target.value)} placeholder="Search companies" className="w-full rounded-xl border border-[#cbd9ca] bg-white px-3 py-2.5 text-sm text-[#19342a] shadow-sm outline-none focus:border-[#315844]" /></label></section>}
       {(selected === 'jobs' || selected === 'events') && <section className="mt-10" aria-labelledby="review-heading">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Moderation</p><h2 id="review-heading" className="mt-2 text-2xl font-extrabold">Awaiting approval</h2></div><span className="rounded-full bg-[#dcebd4] px-4 py-2 text-sm font-bold">{pending.jobs.length + pending.events.length} pending</span></div>
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          {([selected]).map((kind) => <div key={kind}><h3 className="mb-3 text-sm font-extrabold uppercase tracking-wide text-[#52705b]">{kind === 'jobs' ? 'Job posts' : 'Events'} · {pending[kind].length}</h3><div className="grid gap-4">{pending[kind].length ? pending[kind].map((item) => <article key={item.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-[#66806c]">{item.companyName || 'Company'} · {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : ''}</p><h4 className="mt-2 text-lg font-extrabold">{item.title || 'Untitled'}</h4><p className="mt-1 text-sm text-[#596c5f]">{kind === 'jobs' ? item.location : `${item.venue || ''} · ${item.date ? new Date(item.date).toLocaleDateString('en-IN') : ''}`}</p><p className="mt-2 line-clamp-3 text-sm leading-6 text-[#586b5e]">{item.description || item.requirements || 'No description provided.'}</p><div className="mt-4 flex flex-wrap gap-2 border-t border-[#ecf0e9] pt-4">{kind === 'events' && item.clipAvailable && <button type="button" onClick={() => openClip(item.id)} disabled={clipBusy} className="rounded-lg border border-[#c5d5c5] px-3 py-2 text-xs font-bold">View clip</button>}<button type="button" disabled={Boolean(actionBusy)} onClick={() => decide(kind, item, 'approve')} className="rounded-lg bg-[#315844] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Approve</button><button type="button" disabled={Boolean(actionBusy)} onClick={() => decide(kind, item, 'reject')} className="rounded-lg border border-[#e3c0bd] px-3 py-2 text-xs font-bold text-[#9f3932] disabled:opacity-50">Reject</button></div></article>) : <p className="rounded-2xl border border-[#d9e4d7] bg-white p-5 text-sm text-[#6b786e] shadow-sm">Nothing to review.</p>}</div></div>)}
+          {([selected]).map((kind) => <div key={kind}><h3 className="mb-3 text-sm font-extrabold uppercase tracking-wide text-[#52705b]">{kind === 'jobs' ? 'Job posts' : 'Events'} · {pending[kind].length}</h3><div className="grid gap-4">{pending[kind].length ? pending[kind].map((item) => <article key={item.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-[#66806c]">{item.companyName || 'Company'} · {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : ''}</p><ListingImage image={item.image} alt={`${item.title || 'Listing'} image`} /><h4 className="mt-2 text-lg font-extrabold">{item.title || 'Untitled'}</h4><p className="mt-1 text-sm text-[#596c5f]">{kind === 'jobs' ? item.location : `${item.venue || ''} · ${item.date ? new Date(item.date).toLocaleDateString('en-IN') : ''}`}</p><p className="mt-2 line-clamp-3 text-sm leading-6 text-[#586b5e]">{item.description || item.requirements || 'No description provided.'}</p><div className="mt-4 flex flex-wrap gap-2 border-t border-[#ecf0e9] pt-4">{kind === 'events' && item.clipAvailable && <button type="button" onClick={() => openClip(item.id)} disabled={clipBusy} className="rounded-lg border border-[#c5d5c5] px-3 py-2 text-xs font-bold">View clip</button>}<button type="button" disabled={Boolean(actionBusy)} onClick={() => decide(kind, item, 'approve')} className="rounded-lg bg-[#315844] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Approve</button><button type="button" disabled={Boolean(actionBusy)} onClick={() => decide(kind, item, 'reject')} className="rounded-lg border border-[#e3c0bd] px-3 py-2 text-xs font-bold text-[#9f3932] disabled:opacity-50">Reject</button></div></article>) : <p className="rounded-2xl border border-[#d9e4d7] bg-white p-5 text-sm text-[#6b786e] shadow-sm">Nothing to review.</p>}</div></div>)}
         </div>
       </section>}
       {mode === 'publish' && <section className="mt-12" aria-labelledby="editorial-heading"><p className="text-xs font-extrabold uppercase tracking-[.2em] text-[#52705b]">Editorial</p><h2 id="editorial-heading" className="mt-2 text-2xl font-extrabold">Publish a story</h2><p className="mt-2 text-sm text-[#5d6d62]">Your article appears alongside the live news on Trends or Technologies.</p><form onSubmit={publishPost} className="mt-5 grid gap-4 rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm sm:p-6"><label className="grid gap-2 text-sm font-bold">Page<select value={draft.domain} onChange={(event) => setDraft((current) => ({ ...current, domain: event.target.value }))} className="rounded-lg border border-[#cbd9ca] p-3"><option value="all">Trends</option><option value="technology">Technologies</option></select></label><label className="grid gap-2 text-sm font-bold">Headline<input required maxLength={255} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="rounded-lg border border-[#cbd9ca] p-3" /></label><label className="grid gap-2 text-sm font-bold">Summary<textarea required maxLength={2000} rows={2} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="rounded-lg border border-[#cbd9ca] p-3" /></label><label className="grid gap-2 text-sm font-bold">Article<textarea required maxLength={30000} rows={8} value={draft.body} onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} className="rounded-lg border border-[#cbd9ca] p-3" /></label><div className="grid gap-3"><span className="text-sm font-bold">Story image <span className="font-normal text-[#6b786e]">(optional)</span></span><div className="flex gap-2" role="group" aria-label="Image source"><button type="button" onClick={() => setImageMode('upload')} className={`rounded-lg px-4 py-2 text-sm font-bold ${imageMode === 'upload' ? 'bg-[#315844] text-white' : 'border border-[#cbd9ca] text-[#315844]'}`}>Upload image</button><button type="button" onClick={() => setImageMode('link')} className={`rounded-lg px-4 py-2 text-sm font-bold ${imageMode === 'link' ? 'bg-[#315844] text-white' : 'border border-[#cbd9ca] text-[#315844]'}`}>Image link</button></div>{imageMode === 'upload' ? <label className="grid gap-2 text-sm text-[#6b786e]">JPEG, PNG or WebP · up to 5 MB<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseImage(event.target.files?.[0])} className="rounded-lg border border-[#cbd9ca] bg-white p-3 text-sm text-[#19342a]" /></label> : <label className="grid gap-2 text-sm text-[#6b786e]">HTTPS image URL<input type="url" value={draft.image} onChange={(event) => setDraft((current) => ({ ...current, image: event.target.value }))} className="rounded-lg border border-[#cbd9ca] p-3 text-[#19342a]" placeholder="https://example.com/image.jpg" /></label>}{(imageMode === 'upload' ? imagePreview : draft.image.startsWith('https://') ? draft.image : '') && <img src={imageMode === 'upload' ? imagePreview : draft.image} alt="Story image preview" className="h-48 w-full rounded-xl border border-[#d9e4d7] object-cover" />}</div><button type="submit" disabled={Boolean(actionBusy)} className="justify-self-start rounded-lg bg-[#315844] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Publish story</button></form>{editorial.length > 0 && <div className="mt-7"><h3 className="font-extrabold">Recent stories</h3><div className="mt-3 grid gap-4 sm:grid-cols-2">{editorial.map((post) => <article key={post.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 shadow-sm"><span className="text-xs font-extrabold uppercase tracking-wide text-[#52705b]">{post.domain === 'technology' ? 'Technologies' : 'Trends'}</span><h4 className="mt-2 text-base font-extrabold">{post.title}</h4><p className="mt-2 line-clamp-2 text-sm text-[#6b786e]">{post.description}</p><div className="mt-4 flex items-center justify-between gap-3 border-t border-[#ecf0e9] pt-3"><span className="text-xs text-[#86968a]">Published {new Date(post.publishedAt).toLocaleDateString('en-IN')}</span><button type="button" onClick={() => deleteStory(post)} disabled={Boolean(actionBusy)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[#a43732] hover:bg-red-50 disabled:opacity-50" aria-label={`Delete ${post.title}`}><Trash2 size={14} /> Delete</button></div></article>)}</div></div>}</section>}
@@ -424,7 +537,7 @@ function AdminManagementDashboard({ mode, session }) {
         <div><h2 className="text-xl font-extrabold">{sections.find((item) => item.key === selected)?.title}</h2><p className="mt-1 text-xs text-[#6b786e]">Most recent 100 records</p></div>
         {visibleRecords.length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{visibleRecords.map((item) => <article key={item.id} className="rounded-2xl border border-[#d9e4d7] bg-white p-5 text-sm shadow-sm">
           <span className="text-xs font-bold uppercase tracking-wide text-[#66806c]">{sections.find((section) => section.key === selected)?.title}</span>
-          {selected === 'people' ? <dl className="mt-4 grid gap-3 rounded-xl border border-[#e4ece0] bg-[#f9fbf7] p-4"><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Name</dt><dd className="mt-1 break-words text-base font-extrabold text-[#19342a]">{item.name || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Email ID</dt><dd className="mt-1 break-all text-[#43584b]">{item.email || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">WhatsApp number</dt><dd className="mt-1 break-all font-semibold text-[#43584b]">{item.phone ? `+91 ${item.phone}` : 'Not provided'}</dd></div></dl> : <><h3 className="mt-2 break-words text-base font-extrabold">{item.name || item.companyName || item.title || 'Untitled'}</h3><p className="mt-2 break-words text-[#64736a]">{item.email || item.phone || item.location || item.venue || ''}</p></>}
+          {selected === 'people' ? <dl className="mt-4 grid gap-3 rounded-xl border border-[#e4ece0] bg-[#f9fbf7] p-4"><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Name</dt><dd className="mt-1 break-words text-base font-extrabold text-[#19342a]">{item.name || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">Email ID</dt><dd className="mt-1 break-all text-[#43584b]">{item.email || 'Not provided'}</dd></div><div><dt className="text-xs font-bold uppercase tracking-wide text-[#66806c]">WhatsApp number</dt><dd className="mt-1 break-all font-semibold text-[#43584b]">{item.phone ? `+91 ${item.phone}` : 'Not provided'}</dd></div></dl> : <><ListingImage image={(selected === 'jobs' || selected === 'events') ? item.image : ''} alt={`${item.title || 'Listing'} image`} /><h3 className="mt-2 break-words text-base font-extrabold">{item.name || item.companyName || item.title || 'Untitled'}</h3><p className="mt-2 break-words text-[#64736a]">{item.email || item.phone || item.location || item.venue || ''}</p></>}
           {item.createdByAdmin && selected !== 'jobs' && <p className="mt-2 text-xs font-semibold text-[#315844]">Published by admin {item.creatorUsername}</p>}
           {item.status && <span className={`mt-3 inline-block rounded-full px-3 py-1 text-xs font-bold capitalize ${item.isDeleted ? 'bg-red-50 text-[#a43732]' : item.isExpired ? 'bg-amber-50 text-amber-800' : 'bg-[#eef3e9]'}`}>{item.isDeleted ? 'Deleted' : item.isExpired ? 'Expired' : item.status}</span>}
           {selected === 'jobs' && item.expiresAt && <p className="mt-2 text-xs font-medium text-[#64736a]">{item.isDeleted ? 'Last scheduled expiry' : 'Public listing ends'} {new Date(item.expiresAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
@@ -449,11 +562,11 @@ function AdminManagementDashboard({ mode, session }) {
       {clipUrl && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={closeClip}><div className="w-full max-w-2xl rounded-2xl bg-white p-4" onClick={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><h2 className="font-bold">Event verification clip</h2><button type="button" onClick={closeClip} aria-label="Close clip" className="rounded-lg p-2 hover:bg-stone-100"><X size={19} /></button></div><video src={clipUrl} controls className="max-h-[70vh] w-full rounded-xl bg-black" /></div></div>}
       {actionModal && <AdminActionModal action={actionModal} reason={reviewReason} onReasonChange={setReviewReason} onClose={() => setActionModal(null)} onConfirm={confirmAction} busy={actionBusy === actionModal.item.id} error={modalError} />}
       {editingEvent && <EventEditModal event={editingEvent} allowOrganizer onClose={() => !actionBusy && setEditingEvent(null)} onSave={saveAdminEvent} onUploadImage={uploadEditorialImage} busy={actionBusy === editingEvent.id} error={editError} />}
-      {editingJob && <JobEditModal job={editingJob} onClose={() => !actionBusy && setEditingJob(null)} onSave={saveAdminJob} busy={actionBusy === editingJob.id} error={editError} />}
+      {editingJob && <JobEditModal job={editingJob} onClose={() => !actionBusy && setEditingJob(null)} onSave={saveAdminJob} onUploadImage={uploadEditorialImage} busy={actionBusy === editingJob.id} error={editError} />}
       {editingPerson && <PersonEditModal person={editingPerson} onClose={() => !actionBusy && setEditingPerson(null)} onSave={saveAdminPerson} busy={actionBusy === editingPerson.id} error={editError} />}
       {editingCompany && <CompanyEditModal company={editingCompany} onClose={() => !actionBusy && setEditingCompany(null)} onSave={saveAdminCompany} busy={actionBusy === editingCompany.id} error={editError} />}
       {applicationsJob && <JobApplicationsModal job={applicationsJob} applications={jobApplications} busy={jobApplicationsBusy} error={jobApplicationsError} onClose={() => { if (!jobApplicationsBusy) setApplicationsJob(null); }} />}
-      <Link to="/" className="mt-10 inline-flex text-sm font-bold text-[#315844] underline underline-offset-4">View public site</Link>
+      <Link to="/" onClick={goToPublicSite} className="mt-10 inline-flex text-sm font-bold text-[#315844] underline underline-offset-4">View public site</Link>
       </div>
     </div>
   </main>;

@@ -162,6 +162,7 @@ function jobPublic(row) {
     positions: Array.isArray(positions) ? positions.map(({ contactName: ignoredName, contactPhone: ignoredPhone, ...position }) => ({ ...position, remarks: scrub(position.remarks) })) : [],
     id: row.id, companyId: row.company_id, status: row.status,
     createdAt: iso(row.created_at), expiresAt: iso(row.expires_at), renewedAt: iso(row.renewed_at),
+    displayOrder: Number(row.display_order || 0),
   };
 }
 
@@ -173,12 +174,12 @@ function jobOwner(row) {
     createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '',
     status: row.status, createdAt: iso(row.created_at), expiresAt, renewedAt: iso(row.renewed_at),
     reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', deletedAt,
-    isDeleted: Boolean(deletedAt), isExpired: !deletedAt && Boolean(expiresAt) && new Date(expiresAt).getTime() <= Date.now(),
+    displayOrder: Number(row.display_order || 0), isDeleted: Boolean(deletedAt), isExpired: !deletedAt && Boolean(expiresAt) && new Date(expiresAt).getTime() <= Date.now(),
   };
 }
 
 function eventOwner(row) {
-  return { ...parseJson(row.data_json), id: row.id, companyId: row.company_id, createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, createdAt: iso(row.created_at), reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '' };
+  return { ...parseJson(row.data_json), id: row.id, companyId: row.company_id, createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, createdAt: iso(row.created_at), reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', displayOrder: Number(row.display_order || 0) };
 }
 
 function registrationUrlOf(value, fallback = '') {
@@ -220,8 +221,10 @@ function updatedJobData(input, current) {
   const contactName = String(input?.contactName || '').trim().slice(0, 100);
   const contactPhone = input?.contactPhone ? phoneOf(input.contactPhone) : '';
   const contactEmail = emailOf(input?.contactEmail);
+  const image = String(input?.image === undefined ? current.image || '' : input.image || '').trim().slice(0, 2048);
   if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) throw Object.assign(new Error('Enter a valid 10-digit contact phone number.'), { status: 400 });
   if (contactEmail && (!/^\S+@\S+\.\S+$/.test(contactEmail) || contactEmail.length > 254)) throw Object.assign(new Error('Enter a valid contact email.'), { status: 400 });
+  if (image && !/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) throw Object.assign(new Error('Use an HTTPS image URL or upload an image.'), { status: 400 });
   const positions = Array.isArray(current.positions) && current.positions.length
     ? current.positions.map((position, index) => index ? position : { ...position, title, remarks: description, contactName: contactName || position.contactName || '', contactPhone: contactPhone || position.contactPhone || '' })
     : [{ title, experiences: [], remarks: description, contactName, contactPhone }];
@@ -229,7 +232,7 @@ function updatedJobData(input, current) {
     ...current, title, companyName, location, description, positions,
     requirements: String(input?.requirements || '').trim().slice(0, 3000),
     experience: String(input?.experience || '').trim().slice(0, 100), salary: String(input?.salary || '').trim().slice(0, 100),
-    contactName, contactPhone, contactEmail,
+    contactName, contactPhone, contactEmail, image,
     jobType: ['full-time', 'part-time', 'contract'].includes(input?.jobType) ? input.jobType : (current.jobType || 'full-time'),
   };
 }
@@ -280,6 +283,33 @@ export async function seedReadOnlySuperAdmin(db) {
 
 export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdentity = verifyGoogleIdentity } = {}) {
   const router = express.Router();
+
+  const updateListingOrder = async (req, res, table, label) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((id) => String(id || '').trim()) : [];
+    if (!ids.length || ids.length > 100 || ids.some((id) => !id) || new Set(ids).size !== ids.length) {
+      return fail(res, 400, `Send up to 100 unique ${label} IDs in their public display order.`);
+    }
+    const placeholders = ids.map(() => '?').join(', ');
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(`SELECT id FROM ${table} WHERE id IN (${placeholders}) AND deleted_at IS NULL FOR UPDATE`, ids);
+      if (rows.length !== ids.length) {
+        await connection.rollback();
+        return fail(res, 404, `One or more ${label} listings are no longer available.`);
+      }
+      for (const [index, id] of ids.entries()) {
+        await connection.execute(`UPDATE ${table} SET display_order = ? WHERE id = ?`, [index + 1, id]);
+      }
+      await connection.commit();
+      res.json({ ok: true, orderedIds: ids });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  };
   const personOnly = requireRole(db, 'person');
   const companyOnly = requireRole(db, 'company');
   const adminOnly = requireAdminRole(db, ['admin']);
@@ -522,7 +552,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   router.post('/companies/logout', async (req, res) => { await clearSession(db, req, res, 'company'); res.json({ ok: true }); });
 
   router.get('/jobs', async (req, res) => {
-    const [rows] = await db.execute("SELECT * FROM jobs WHERE status = 'active' AND expires_at > UTC_TIMESTAMP(3) AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 500");
+    const [rows] = await db.execute("SELECT * FROM jobs WHERE status = 'active' AND expires_at > UTC_TIMESTAMP(3) AND deleted_at IS NULL ORDER BY CASE WHEN display_order > 0 THEN 0 ELSE 1 END, display_order ASC, created_at DESC LIMIT 500");
     res.json({ jobs: rows.map(jobPublic) });
   });
   router.get('/jobs/expired', companyOnly, async (req, res) => {
@@ -611,8 +641,8 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   });
 
   router.get('/events', async (req, res) => {
-    const [rows] = await db.execute("SELECT e.*, (SELECT COUNT(*) FROM event_registrations r WHERE BINARY r.event_id = BINARY e.id) + (SELECT COUNT(*) FROM event_external_registrations er WHERE BINARY er.event_id = BINARY e.id) AS registered_count FROM events e WHERE e.status = 'approved' AND e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 500");
-    res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, registeredCount: Number(row.registered_count) })) });
+    const [rows] = await db.execute("SELECT e.*, (SELECT COUNT(*) FROM event_registrations r WHERE BINARY r.event_id = BINARY e.id) + (SELECT COUNT(*) FROM event_external_registrations er WHERE BINARY er.event_id = BINARY e.id) AS registered_count FROM events e WHERE e.status = 'approved' AND e.deleted_at IS NULL ORDER BY CASE WHEN e.display_order > 0 THEN 0 ELSE 1 END, e.display_order ASC, e.created_at DESC LIMIT 500");
+    res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, registeredCount: Number(row.registered_count), displayOrder: Number(row.display_order || 0) })) });
   });
   router.post('/events', companyOnly, async (req, res) => {
     const event = req.body?.event || {};
@@ -851,6 +881,12 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const companyName = String(input.companyName || entries[0]?.companyName || '').trim().slice(0, 120);
     const location = String(input.location || entries[0]?.location || '').trim().slice(0, 120);
     if (!companyName || !location) return fail(res, 400, 'Add a company name and location.');
+    const image = String(input.image || '').trim().slice(0, 2048);
+    if (image && !/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) return fail(res, 400, 'Use an HTTPS image URL or upload an image.');
+    if (image.startsWith('/api/editorial/images/')) {
+      const [[savedImage]] = await db.execute('SELECT id FROM editorial_images WHERE id = ?', [image.split('/').at(-1)]);
+      if (!savedImage) return fail(res, 400, 'Upload the image again.');
+    }
     const expiryDays = ADMIN_EXPIRY_DAY_OPTIONS.has(Number(input.expiryDays)) ? Number(input.expiryDays) : 3;
     const normalized = [];
     for (const entry of entries) {
@@ -874,7 +910,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
       if (position && !experiences.length) return fail(res, 400, 'Select at least one experience level for each position.');
       normalized.push({ title, companyName, location, description, requirements, experience, salary, contactName, contactPhone, contactEmail,
         jobType: ['full-time', 'part-time', 'contract'].includes(entry?.jobType || input.jobType) ? (entry.jobType || input.jobType) : 'full-time',
-        positions: [{ title, experiences, remarks: String(position?.remarks || description).trim().slice(0, 5000), contactName, contactPhone }], expiryDays, source: 'Hapzo360' });
+        positions: [{ title, experiences, remarks: String(position?.remarks || description).trim().slice(0, 5000), contactName, contactPhone }], image, expiryDays, source: 'Hapzo360' });
     }
     const createdAt = now();
     const reviewedAt = mysqlDate(new Date());
@@ -957,12 +993,17 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } finally { connection.release(); }
     res.json({ job: { ...jobOwner({ ...job, deleted_at: null, status: 'active', expires_at: mysqlDate(expiresAt), renewed_at: restoredAt, reviewed_at: restoredAt, reviewed_by: req.accountId, rejection_reason: null }), expiresAt: expiresAt.toISOString(), renewedAt: new Date(restoredAt).toISOString() } });
   });
+  router.patch('/admin/jobs/display-order', anyAdmin, async (req, res) => updateListingOrder(req, res, 'jobs', 'opening'));
   router.patch('/admin/jobs/:id', anyAdmin, async (req, res) => {
     const [[job]] = await db.execute('SELECT * FROM jobs WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!job) return fail(res, 404, 'Opening not found.');
     let data;
     try { data = updatedJobData(req.body?.job, parseJson(job.data_json)); }
     catch (error) { return fail(res, error.status || 400, error.message); }
+    if (data.image?.startsWith('/api/editorial/images/')) {
+      const [[savedImage]] = await db.execute('SELECT id FROM editorial_images WHERE id = ?', [data.image.split('/').at(-1)]);
+      if (!savedImage) return fail(res, 400, 'Upload the image again.');
+    }
     let expiresAt = new Date(job.expires_at);
     if (Object.hasOwn(req.body?.job || {}, 'expiresAt')) {
       try { expiresAt = adminJobExpiry({ expiresAt: req.body.job.expiresAt }); }
@@ -971,6 +1012,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     await db.execute('UPDATE jobs SET data_json = ?, expires_at = ? WHERE id = ?', [JSON.stringify(data), mysqlDate(expiresAt), job.id]);
     res.json({ job: { ...jobOwner({ ...job, expires_at: mysqlDate(expiresAt) }), ...data, expiresAt: expiresAt.toISOString() } });
   });
+  router.patch('/admin/events/display-order', anyAdmin, async (req, res) => updateListingOrder(req, res, 'events', 'happening'));
   router.patch('/admin/events/:id', anyAdmin, async (req, res) => {
     const [[event]] = await db.execute('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
     if (!event) return fail(res, 404, 'Happening not found.');
@@ -1219,7 +1261,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } finally { connection.release(); }
   });
   router.get('/admin/jobs', anyAdmin, async (req, res) => {
-    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name, (SELECT COUNT(*) FROM applications application WHERE application.job_id = j.id) AS application_count FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id ORDER BY j.created_at DESC LIMIT 100');
+    const [rows] = await db.query('SELECT j.*, a.username AS creator_username, c.company_name, (SELECT COUNT(*) FROM applications application WHERE application.job_id = j.id) AS application_count FROM jobs j LEFT JOIN admin_users a ON a.id = j.created_by_admin LEFT JOIN companies c ON c.id = j.company_id ORDER BY CASE WHEN j.display_order > 0 THEN 0 ELSE 1 END, j.display_order ASC, j.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'job', rows.map((row) => row.id));
     res.json({ jobs: rows.map((row) => ({ ...jobOwner(row), companyName: row.company_name || parseJson(row.data_json).companyName || '', applicationCount: Number(row.application_count || 0), reviewHistory: history.get(row.id) || [] })) });
   });
@@ -1230,9 +1272,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     res.json({ applications: rows.map((row) => ({ id: row.id, name: row.name || '', email: row.email || '', phone: row.phone || '', appliedAt: iso(row.created_at) })) });
   });
   router.get('/admin/events', anyAdmin, async (req, res) => {
-    const [rows] = await db.query('SELECT e.*, a.username AS creator_username, co.company_name, (ec.event_id IS NOT NULL) AS clip_available FROM events e LEFT JOIN admin_users a ON a.id = e.created_by_admin LEFT JOIN companies co ON co.id = e.company_id LEFT JOIN event_clips ec ON ec.event_id = e.id WHERE e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT 100');
+    const [rows] = await db.query('SELECT e.*, a.username AS creator_username, co.company_name, (ec.event_id IS NOT NULL) AS clip_available FROM events e LEFT JOIN admin_users a ON a.id = e.created_by_admin LEFT JOIN companies co ON co.id = e.company_id LEFT JOIN event_clips ec ON ec.event_id = e.id WHERE e.deleted_at IS NULL ORDER BY CASE WHEN e.display_order > 0 THEN 0 ELSE 1 END, e.display_order ASC, e.created_at DESC LIMIT 100');
     const history = await reviewHistory(db, 'event', rows.map((row) => row.id));
-    res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, companyId: row.company_id || '', companyName: row.company_name || '', createdAt: iso(row.created_at), createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', clipAvailable: Boolean(row.clip_available), reviewHistory: history.get(row.id) || [] })) });
+    res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, companyId: row.company_id || '', companyName: row.company_name || '', createdAt: iso(row.created_at), createdByAdmin: Boolean(row.created_by_admin), creatorUsername: row.creator_username || '', status: row.status, reviewedAt: iso(row.reviewed_at), rejectionReason: row.rejection_reason || '', displayOrder: Number(row.display_order || 0), clipAvailable: Boolean(row.clip_available), reviewHistory: history.get(row.id) || [] })) });
   });
   router.get('/admin/events/:id/clip', anyAdmin, async (req, res) => {
     const [[clip]] = await db.execute('SELECT mime_type, clip FROM event_clips WHERE event_id = ?', [req.params.id]);
