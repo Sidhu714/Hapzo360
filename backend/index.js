@@ -921,6 +921,32 @@ const ALL_TRENDS_LIMIT = 12;
 const cache = new Map();
 const STATE = "Tamil Nadu";
 
+// This is deliberately marked as reference-only data. It keeps the public
+// Price List useful if its live Government provider cannot be reached from
+// the VPS; it must never be presented as a current trading quote.
+const REFERENCE_PRICE_ROWS = [
+  ['Tomato', 'vegetables', 'Coimbatore', 'Mettupalayam Market', 12, 18, 15, 'kg'],
+  ['Onion', 'vegetables', 'Salem', 'Salem Market', 20, 28, 24, 'kg'],
+  ['Potato', 'vegetables', 'Chennai', 'Koyambedu Market', 22, 30, 26, 'kg'],
+  ['Banana', 'fruits', 'Madurai', 'Madurai Market', 28, 40, 34, 'kg'],
+  ['Mango', 'fruits', 'Dindigul', 'Dindigul Market', 55, 80, 68, 'kg'],
+  ['Coconut', 'agriculture', 'Thanjavur', 'Thanjavur Market', 28, 38, 33, 'kg'],
+  ['Turmeric (dry)', 'agriculture', 'Erode', 'Erode Market', 135, 170, 150, 'kg'],
+  ['Paddy', 'agriculture', 'Tiruchirappalli', 'Trichy Market', 22, 30, 26, 'kg'],
+  ['Cotton yarn', 'yarn', 'Tiruppur', 'Tiruppur textile market', 220, 280, 250, 'kg'],
+];
+
+function referencePriceItems() {
+  const updatedAt = new Date().toISOString();
+  return REFERENCE_PRICE_ROWS.map(([name, category, location, market, minPrice, maxPrice, modalPrice, unit]) => ({
+    id: `reference-${name}-${location}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    name, category, priceType: 'wholesale', location, district: location, market,
+    minPrice, maxPrice, modalPrice, unit, currency: 'INR',
+    source: 'Hapzo360 reference guide — not live', sourceUrl: null,
+    marketDate: null, updatedAt, previousModalPrice: null, isReference: true,
+  }));
+}
+
 // CORS must come before any routes/routers so every response gets the headers
 app.use(
   cors({
@@ -1528,9 +1554,20 @@ app.get("/api/prices", async (req, res) => {
     );
 
     if (!hasPriceData) {
-      return res.status(502).json({
-        error: "No price providers returned data",
-        message: "The mandi price source is unavailable. Check the provider details and try again.",
+      const items = referencePriceItems()
+        .filter((item) => category === 'all' || item.category === category)
+        .filter((item) => priceType === 'all' || item.priceType === priceType)
+        .filter((item) => matchesLocation(item, location))
+        .filter((item) => matchesSearch(item, query))
+        .slice(0, limit);
+
+      res.set('Cache-Control', 'no-store');
+      return res.json({
+        items,
+        updatedAt: null,
+        stale: true,
+        reference: true,
+        message: 'Live mandi prices are temporarily unavailable. These rows are indicative reference data, not current market quotes.',
         sources: results.map((result, index) => ({
           id: index === 0 ? "agmarknet" : "yarn",
           ok: result.status === "fulfilled" && result.value.data.length > 0,
@@ -1539,6 +1576,10 @@ app.get("/api/prices", async (req, res) => {
             : "No records returned",
           count: result.status === "fulfilled" ? result.value.data.length : 0,
         })),
+        meta: {
+          category, priceType, location, count: items.length, cacheTtlMs: 0,
+          note: 'Reference data is shown only while the live provider is unavailable. It is not a current market quote.',
+        },
       });
     }
 

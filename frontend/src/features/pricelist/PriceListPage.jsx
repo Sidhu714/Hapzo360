@@ -538,6 +538,7 @@ export default function PriceList() {
     loading: true,
     error: "",
     updatedAt: null,
+    reference: false,
   });
 
   // wait for the person to stop typing before calling the API
@@ -566,6 +567,7 @@ export default function PriceList() {
           loading: false,
           error: "",
           updatedAt: data.updatedAt ?? null,
+          reference: Boolean(data.reference),
         });
       } catch (error) {
         if (error.name === "AbortError") return;
@@ -577,6 +579,7 @@ export default function PriceList() {
             error.message ||
             "We couldn't load prices. Please check your connection and try again.",
           updatedAt: null,
+          reference: false,
         });
       }
     }
@@ -805,12 +808,18 @@ export default function PriceList() {
             </label>
           </div>
 
+          {state.reference && (
+            <p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">
+              <strong>Reference data only:</strong> the live market source is temporarily unavailable. These indicative values are not current trading quotes; refresh later for verified prices.
+            </p>
+          )}
+
           <div className="mt-4 flex flex-col gap-2 border-t border-[#faeaf1] pt-4 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
             <span className="inline-flex items-center gap-2">
               <CalendarDays size={14} />
               {state.updatedAt
                 ? `API updated ${formatDateTime(state.updatedAt)}`
-                : "Source update time will appear here"}
+                : state.reference ? "Showing reference data while the live source reconnects" : "Source update time will appear here"}
             </span>
 
             <span>
