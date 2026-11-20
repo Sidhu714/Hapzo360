@@ -37,6 +37,18 @@ function cookies(req) {
   return Object.fromEntries((req.headers.cookie || '').split(';').map((item) => item.trim().split('=')).filter(([key, value]) => key && value));
 }
 
+function sessionTokenFromRequest(req, role) {
+  // The deployed frontend and API use different domains. Some privacy modes
+  // block that third-party cookie, so admin requests can also use the
+  // short-lived, per-tab bearer token returned by the login endpoint.
+  if (role === 'super_admin') {
+    const authorization = String(req.headers.authorization || '');
+    const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+    if (bearer) return bearer;
+  }
+  return cookies(req)[COOKIE[role]];
+}
+
 function cookieOptions() {
   const secure = process.env.NODE_ENV === 'production';
   return { httpOnly: true, secure, sameSite: secure ? 'none' : 'lax', path: '/api', maxAge: SESSION_DAYS * 86_400_000 };
@@ -49,10 +61,11 @@ async function createSession(db, req, res, role, subjectId) {
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
   await db.execute('INSERT INTO sessions (token_hash, role, subject_id, expires_at) VALUES (?, ?, ?, ?)', [tokenHash(token), role, subjectId, mysqlDate(expires)]);
   res.cookie(COOKIE[role], token, cookieOptions());
+  return token;
 }
 
 async function findSession(db, req, role) {
-  const token = cookies(req)[COOKIE[role]];
+  const token = sessionTokenFromRequest(req, role);
   if (!token) return null;
   const [rows] = await db.execute('SELECT subject_id FROM sessions WHERE token_hash = ? AND role = ? AND expires_at > UTC_TIMESTAMP(3)', [tokenHash(token), role]);
   return rows[0]?.subject_id || null;
@@ -84,7 +97,7 @@ function requireAdminRole(db, allowedRoles) {
 }
 
 async function clearSession(db, req, res, role) {
-  const token = cookies(req)[COOKIE[role]];
+  const token = sessionTokenFromRequest(req, role);
   if (token) await db.execute('DELETE FROM sessions WHERE token_hash = ?', [tokenHash(token)]);
   res.clearCookie(COOKIE[role], { ...cookieOptions(), maxAge: undefined });
 }
@@ -747,8 +760,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     if (!admin || !verifyPassword(String(req.body?.password || ''), admin.password_hash)) {
       return fail(res, 401, 'Incorrect username or password.');
     }
-    await createSession(db, req, res, 'super_admin', admin.id);
-    res.json({ role: admin.role, username: adminDisplayUsername(admin) });
+    const sessionToken = await createSession(db, req, res, 'super_admin', admin.id);
+    res.set('Cache-Control', 'no-store, private');
+    res.json({ role: admin.role, username: adminDisplayUsername(admin), sessionToken });
   });
   router.get('/admin/session', async (req, res) => {
     // Session state is user-specific. Prevent browsers and intermediaries

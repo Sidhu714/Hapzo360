@@ -1,14 +1,27 @@
 import API_BASE_URL from '../../config/api';
 
 const ADMIN_API = `${API_BASE_URL}/api/admin`;
+const ADMIN_SESSION_TOKEN_KEY = 'hapzo_admin_session_token';
+
+function adminSessionToken() {
+  try { return window.sessionStorage.getItem(ADMIN_SESSION_TOKEN_KEY) || ''; } catch { return ''; }
+}
+
+function storeAdminSessionToken(token) {
+  try {
+    if (token) window.sessionStorage.setItem(ADMIN_SESSION_TOKEN_KEY, token);
+    else window.sessionStorage.removeItem(ADMIN_SESSION_TOKEN_KEY);
+  } catch { /* Session storage may be unavailable in a restricted browser. */ }
+}
 
 async function request(path, options = {}) {
   let response;
   try {
+    const token = adminSessionToken();
     response = await fetch(`${ADMIN_API}${path}`, {
       ...options,
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
     });
   } catch {
     throw new Error('Cannot reach the admin backend. Check that the backend is running and the API URL is correct.');
@@ -45,11 +58,13 @@ export async function loginAdmin(username, password) {
     body: JSON.stringify({ username, password }),
   });
   if (!['admin', 'super_admin'].includes(data.role)) throw new Error('This account does not have administrator access.');
+  storeAdminSessionToken(data.sessionToken);
   return data;
 }
 
 export async function logoutAdmin() {
-  return request('/logout', { method: 'POST' });
+  try { return await request('/logout', { method: 'POST' }); }
+  finally { storeAdminSessionToken(''); }
 }
 
 export async function getAdminOverview() { return request('/overview'); }
