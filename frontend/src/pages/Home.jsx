@@ -285,30 +285,16 @@ const openingsScene = (svg) => {
   };
 };
 
-/* Runs a scene's frame loop only while its card is visible; static frame for reduced motion */
+/* Render a single stable scene frame. Rebuilding several SVG scenes every animation frame,
+   alongside looping videos, can freeze navigation on lower-powered graphics devices. */
 function useScene(scene, stillTime) {
   const ref = useRef(null);
   useEffect(() => {
     const svg = ref.current;
     if (!svg) return undefined;
     const frame = scene(svg);
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      frame(stillTime);
-      return undefined;
-    }
-    const start = performance.now();
-    let raf = 0;
-    let running = false;
-    const loop = () => {
-      frame((performance.now() - start) / 1000);
-      raf = requestAnimationFrame(loop);
-    };
-    const io = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !running) { running = true; raf = requestAnimationFrame(loop); }
-      else if (!entry.isIntersecting && running) { running = false; cancelAnimationFrame(raf); }
-    });
-    io.observe(svg);
-    return () => { io.disconnect(); cancelAnimationFrame(raf); };
+    frame(stillTime);
+    return undefined;
   }, [scene, stillTime]);
   return ref;
 }
@@ -397,7 +383,7 @@ export default function ServiceGrid() {
               <video
                 className="service-card-background-video"
                 src={CARD_VIDEOS[service.id]}
-                autoPlay
+                autoPlay={service.id === 'happenings'}
                 muted
                 loop
                 playsInline
@@ -416,8 +402,8 @@ export default function ServiceGrid() {
               </h3>
             </div>
 
-            {/* Keep the Openings and Trends scenes mounted; CSS hides them while their videos play. */}
-            {service.id !== 'happenings' && (
+            {/* Do not mount illustrations underneath video cards: they still consume CPU even when hidden. */}
+            {!CARD_VIDEOS[service.id] && (
               <div aria-hidden="true" className={`service-art service-art--${service.id}`}>
                 <Graphic />
               </div>
