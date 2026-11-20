@@ -1,6 +1,14 @@
 Options -MultiViews
 RewriteEngine On
 
+# Always check for a newer HTML entry page. JavaScript and CSS assets have
+# fingerprinted filenames, so they remain safe to cache for a long time.
+<IfModule mod_headers.c>
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
 # Serve the React app for client-side routes while leaving real assets and
 # server files untouched.
 RewriteCond %{REQUEST_FILENAME} !-f

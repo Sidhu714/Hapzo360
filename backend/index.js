@@ -924,7 +924,9 @@ const STATE = "Tamil Nadu";
 // CORS must come before any routes/routers so every response gets the headers
 app.use(
   cors({
-    origin: ["https://hapzo360.netlify.app", "http://localhost:5173", "http://127.0.0.1:5173", process.env.FRONTEND_ORIGIN].filter(Boolean),
+    // Both canonical domain variants are in use. Browsers require an exact
+    // CORS-origin match, so visitors using www must be allowed too.
+    origin: ["https://hapzo360.netlify.app", "https://hapzo360.com", "https://www.hapzo360.com", "http://localhost:5173", "http://127.0.0.1:5173", process.env.FRONTEND_ORIGIN].filter(Boolean),
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
