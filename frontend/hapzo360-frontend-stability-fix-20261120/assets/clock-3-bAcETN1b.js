@@ -1,0 +1,1 @@
+import{r as e}from"./api-CSwAiZVx.js";var t={name:`arrow-left`,size:24,node:[[`path`,{d:`m12 19-7-7 7-7`,key:`1l729n`}],[`path`,{d:`M19 12H5`,key:`x3x0zl`}]]};t.node;var n=e(t),r={name:`clock-3`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`M12 6v6h4`,key:`135r8i`}]]};r.node;var i=e(r);export{n,i as t};

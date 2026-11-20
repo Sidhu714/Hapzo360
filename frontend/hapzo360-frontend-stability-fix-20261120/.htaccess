@@ -1,0 +1,8 @@
+Options -MultiViews
+RewriteEngine On
+
+# Serve the React app for client-side routes while leaving real assets and
+# server files untouched.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
