@@ -32,7 +32,10 @@ async function request(path, options = {}) {
 }
 
 export async function getAdminSession() {
-  const data = await request('/session');
+  // Authentication state must never be served from an HTTP cache. A cached
+  // unauthenticated response can otherwise redirect a user back to login
+  // immediately after the server has accepted their credentials.
+  const data = await request('/session', { cache: 'no-store' });
   return data.authenticated && ['admin', 'super_admin'].includes(data.role) ? data : null;
 }
 

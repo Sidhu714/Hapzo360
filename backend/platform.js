@@ -751,6 +751,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     res.json({ role: admin.role, username: adminDisplayUsername(admin) });
   });
   router.get('/admin/session', async (req, res) => {
+    // Session state is user-specific. Prevent browsers and intermediaries
+    // from reusing an earlier unauthenticated response after sign-in.
+    res.set('Cache-Control', 'no-store, private');
     const id = await findSession(db, req, 'super_admin');
     if (!id) return res.json({ authenticated: false });
     const [[admin]] = await db.execute('SELECT username, role FROM admin_users WHERE id = ?', [id]);
