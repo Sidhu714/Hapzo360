@@ -231,7 +231,8 @@ function updatedJobData(input, current) {
   const location = String(input?.location || '').trim().slice(0, 120);
   const description = String(input?.description || '').trim().slice(0, 5000);
   if (!title || !companyName || !location || !description) throw Object.assign(new Error('Add an opening title, company name, location and description.'), { status: 400 });
-  const contactName = String(input?.contactName || '').trim().slice(0, 100);
+  const contactNameProvided = Object.prototype.hasOwnProperty.call(input || {}, 'contactName');
+  const contactName = String(contactNameProvided ? input.contactName || '' : current.contactName || '').trim().slice(0, 100);
   const contactPhone = input?.contactPhone ? phoneOf(input.contactPhone) : '';
   const contactEmail = emailOf(input?.contactEmail);
   const image = String(input?.image === undefined ? current.image || '' : input.image || '').trim().slice(0, 2048);
@@ -239,7 +240,7 @@ function updatedJobData(input, current) {
   if (contactEmail && (!/^\S+@\S+\.\S+$/.test(contactEmail) || contactEmail.length > 254)) throw Object.assign(new Error('Enter a valid contact email.'), { status: 400 });
   if (image && !/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) throw Object.assign(new Error('Use an HTTPS image URL or upload an image.'), { status: 400 });
   const positions = Array.isArray(current.positions) && current.positions.length
-    ? current.positions.map((position, index) => index ? position : { ...position, title, remarks: description, contactName: contactName || position.contactName || '', contactPhone: contactPhone || position.contactPhone || '' })
+    ? current.positions.map((position, index) => index ? position : { ...position, title, remarks: description, contactName: contactNameProvided ? contactName : position.contactName || '', contactPhone: contactPhone || position.contactPhone || '' })
     : [{ title, experiences: [], remarks: description, contactName, contactPhone }];
   return {
     ...current, title, companyName, location, description, positions,
