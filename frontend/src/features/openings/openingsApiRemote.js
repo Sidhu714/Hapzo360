@@ -26,8 +26,21 @@ async function request(path, options = {}) {
 
 const json = (value) => JSON.stringify(value);
 
-export async function listJobs() { return (await request('/jobs')).jobs; }
-export async function listExpiredCompanyJobs() { return (await request('/jobs/expired')).jobs; }
+// Uploaded listing images are stored by the API as `/api/editorial/images/:id`.
+// The public site is hosted on hapzo360.com while the API lives on the VPS, so
+// resolve those relative paths against the configured API host before rendering.
+function publicImageUrl(value) {
+  const image = String(value || '').trim();
+  if (!image || !image.startsWith('/') || !API_BASE_URL) return image;
+  return `${API_BASE_URL}${image}`;
+}
+
+function publicJob(job) {
+  return { ...job, image: publicImageUrl(job?.image) };
+}
+
+export async function listJobs() { return (await request('/jobs')).jobs.map(publicJob); }
+export async function listExpiredCompanyJobs() { return (await request('/jobs/expired')).jobs.map(publicJob); }
 export async function companyAccountExists(email) { return (await request(`/companies/exists?email=${encodeURIComponent(email)}`)).exists; }
 export async function sendCompanyEmailCode(email, phone) { return request('/companies/email-code', { method: 'POST', body: json({ email, phone }) }); }
 export async function verifyCompanyEmailCode(email, phone, code) { return (await request('/companies/verify-email-code', { method: 'POST', body: json({ email, phone, code }) })).verificationToken; }
