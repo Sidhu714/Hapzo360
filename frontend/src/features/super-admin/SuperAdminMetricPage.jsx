@@ -11,7 +11,7 @@ const pages = {
   rejected: { title: 'Rejected submissions', description: 'Company submissions declined by your admin team, including the recorded reason.', icon: XCircle, color: '#cb7e6d' },
 };
 
-const teamOrder = ['raghul gowtham', 'navaneethan', 'karpagham', 'senthamil selvi', 'girju ramalingam'];
+const teamOrder = ['raghul gowtham', 'navaneethan', 'karpagham', 'senthamil selvi', 'girija ramalingam'];
 const orderTeam = (admins = []) => [...admins].sort((a, b) => {
   const ai = teamOrder.indexOf(String(a.username || '').trim().toLowerCase());
   const bi = teamOrder.indexOf(String(b.username || '').trim().toLowerCase());

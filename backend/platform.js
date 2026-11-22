@@ -782,7 +782,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
         WHEN 'navaneethan' THEN 1
         WHEN 'karpagham' THEN 2
         WHEN 'senthamil selvi' THEN 3
-        WHEN 'girju ramalingam' THEN 4
+        WHEN 'girija ramalingam' THEN 4
         ELSE 5
       END, username`);
     const admins = adminRows.map((row) => ({ id: row.id, username: row.username,

@@ -6,7 +6,7 @@ import { getSuperAdminActivity, logoutAdmin } from './adminApi';
 
 const countPosts = (admin) => Object.values(admin.posted).reduce((total, value) => total + Number(value), 0);
 const countReviews = (admin) => Number(admin.reviews.approved) + Number(admin.reviews.rejected);
-const teamOrder = ['raghul gowtham', 'navaneethan', 'karpagham', 'senthamil selvi', 'girju ramalingam'];
+const teamOrder = ['raghul gowtham', 'navaneethan', 'karpagham', 'senthamil selvi', 'girija ramalingam'];
 const orderTeam = (admins = []) => [...admins].sort((a, b) => {
   const aIndex = teamOrder.indexOf(String(a.username || '').trim().toLowerCase());
   const bIndex = teamOrder.indexOf(String(b.username || '').trim().toLowerCase());
