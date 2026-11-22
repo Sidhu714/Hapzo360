@@ -143,11 +143,21 @@ export async function initializeDatabase(db) {
   if (adminEmailColumns[0]?.Null === 'NO') await db.query('ALTER TABLE admin_users MODIFY COLUMN email VARCHAR(254) NULL');
   const [adminRoleColumns] = await db.query("SHOW COLUMNS FROM admin_users LIKE 'role'");
   if (!adminRoleColumns.length) await db.query("ALTER TABLE admin_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash");
-  for (const [oldUsername, newUsername] of [['admin1', 'Ragul Gowtham'], ['admin2', 'Navaneethan'], ['sadmin', 'Lordminds']]) {
+  const adminUsernameRenames = [
+    ['admin1', 'Ragul Gowtham'],
+    ['admin2', 'Navaneethan'],
+    ['sadmin', 'Lordminds'],
+    ['Karpagham', 'Karpagam'],
+    ['Senthamil Selvi', 'Sentamil Selvi'],
+  ];
+  for (const [oldUsername, newUsername] of adminUsernameRenames) {
     const [[oldAccount]] = await db.execute('SELECT id FROM admin_users WHERE username = ? LIMIT 1', [oldUsername]);
     if (!oldAccount) continue;
     const [[nameInUse]] = await db.execute('SELECT id FROM admin_users WHERE username = ? LIMIT 1', [newUsername]);
     if (!nameInUse) await db.execute('UPDATE admin_users SET username = ? WHERE id = ?', [newUsername, oldAccount.id]);
+  }
+  for (const [oldUsername, newUsername] of [['Karpagham', 'Karpagam'], ['Senthamil Selvi', 'Sentamil Selvi']]) {
+    await db.execute('UPDATE moderation_reviews SET reviewer_username = ? WHERE reviewer_username = ?', [newUsername, oldUsername]);
   }
   const [[ragulAdmin]] = await db.execute('SELECT id FROM admin_users WHERE username = ? LIMIT 1', ['Ragul Gowtham']);
   if (ragulAdmin) {

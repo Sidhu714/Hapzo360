@@ -780,8 +780,8 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
       ORDER BY CASE LOWER(username)
         WHEN 'raghul gowtham' THEN 0
         WHEN 'navaneethan' THEN 1
-        WHEN 'karpagham' THEN 2
-        WHEN 'senthamil selvi' THEN 3
+        WHEN 'karpagam' THEN 2
+        WHEN 'sentamil selvi' THEN 3
         WHEN 'girija ramalingam' THEN 4
         ELSE 5
       END, username`);
@@ -916,7 +916,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
       const requirements = String(entry?.requirements || '').trim().slice(0, 3000);
       const experience = String(entry?.experience || '').trim().slice(0, 100);
       const salaryInput = String(entry?.salary || '').trim().slice(0, 100);
-      if (!title || !description || !contactName || !/^[6-9]\d{9}$/.test(contactPhone)) return fail(res, 400, 'Each position needs a title, remarks, contact person and valid 10-digit contact number.');
+      if (!title || !description || !/^[6-9]\d{9}$/.test(contactPhone)) return fail(res, 400, 'Each position needs a title, remarks and a valid 10-digit contact number.');
       if (contactEmail && (!/^\S+@\S+\.\S+$/.test(contactEmail) || contactEmail.length > 254)) return fail(res, 400, 'Enter a valid contact email.');
       const salary = salaryInput && !salaryInput.includes('₹') ? `₹${salaryInput}` : salaryInput;
       const experiences = Array.isArray(position?.experiences) ? position.experiences.slice(0, 20).map((level) => ({
