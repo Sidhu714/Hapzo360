@@ -180,10 +180,6 @@ const validatePositions = (positions) => {
       return `${label}: enter how many people you need for each experience level.`;
     }
 
-    if (!position.contactName.trim()) {
-      return `${label}: enter the contact person name.`;
-    }
-
     if (!position.contactPhone.trim()) {
       return `${label}: enter the contact phone number.`;
     }
@@ -1337,7 +1333,7 @@ export default function PostJobPage() {
                           htmlFor={`contact-name-${position.id}`}
                           className="label mb-2 block"
                         >
-                          Contact person name *
+                          Contact person name (optional)
                         </label>
 
                         <input

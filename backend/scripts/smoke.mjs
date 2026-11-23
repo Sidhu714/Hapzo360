@@ -49,7 +49,7 @@ try {
   if (posted.data.job.status !== 'pending') throw new Error('Job should await approval.');
   const publicJobs = (await call('/jobs')).data.jobs;
   if (publicJobs.some((item) => item.id === cleanup.jobId)) throw new Error('Pending job appeared publicly.');
-  const event = (await call('/events', { method: 'POST', cookie: companyCookie, body: { event: { title: 'Smoke Test Event', venue: 'Chennai', date: new Date(Date.now() + 86_400_000).toISOString(), category: 'Community' } } })).data.event;
+  const event = (await call('/events', { method: 'POST', cookie: companyCookie, body: { event: { title: 'Smoke Test Event', venue: 'Chennai', location: 'Chennai, Tamil Nadu', state: 'Tamil Nadu', district: 'Chennai', date: new Date(Date.now() + 86_400_000).toISOString(), category: 'Community' } } })).data.event;
   cleanup.eventId = event.id;
   const clipBody = Buffer.from('temporary verification clip');
   const clipResponse = await fetch(`${base}/events/${encodeURIComponent(event.id)}/clip?mime=video%2Fwebm`, { method: 'PUT', headers: { Cookie: companyCookie, 'Content-Type': 'application/octet-stream' }, body: clipBody });
@@ -70,7 +70,7 @@ try {
     if (!imageResponse.ok) throw new Error(`Admin event image upload failed: ${imageResponse.status}`);
     const imagePath = (await imageResponse.json()).image;
     cleanup.adminEventImageId = imagePath.split('/').at(-1);
-    const adminEvent = (await call('/admin/events', { method: 'POST', cookie: adminCookie, body: { title: 'Smoke Test Admin Event', organizer: 'Hapzo360', venue: 'Chennai', location: 'Chennai, Tamil Nadu', date: new Date(Date.now() + 86_400_000).toISOString(), category: 'Community', sector: 'Textile', specialty: 'Dyeing', image: imagePath } })).data.event;
+    const adminEvent = (await call('/admin/events', { method: 'POST', cookie: adminCookie, body: { title: 'Smoke Test Admin Event', organizer: 'Hapzo360', venue: 'Chennai', location: 'Chennai, Tamil Nadu', state: 'Tamil Nadu', district: 'Chennai', date: new Date(Date.now() + 86_400_000).toISOString(), category: 'Community', sector: 'Textile', specialty: 'Dyeing', image: imagePath } })).data.event;
     cleanup.adminEventId = adminEvent.id;
     if (adminEvent.status !== 'approved' || !adminEvent.createdByAdmin || adminEvent.image !== imagePath || adminEvent.specialty !== 'Dyeing') throw new Error('Admin happening was not published correctly.');
     const servedImage = await fetch(new URL(imagePath, base));
@@ -115,7 +115,7 @@ try {
     const rejectPayment = (await call('/payments/demo', { method: 'POST', cookie: companyCookie, body: { kind: 'job-posting', amount: rejectFee } })).data.payment;
     const rejectJob = (await call('/jobs', { method: 'POST', cookie: companyCookie, body: { paymentId: rejectPayment.id, job: { title: 'Smoke Test Rejected Role', location: 'Chennai', positions: [{ title: 'Smoke Test Rejected Role', contactName: 'Hiring Tester', contactPhone: companyPhone }], expiryDays: 3 } } })).data.job;
     cleanup.rejectedJobId = rejectJob.id;
-    const rejectEvent = (await call('/events', { method: 'POST', cookie: companyCookie, body: { event: { title: 'Smoke Test Rejected Event', venue: 'Chennai', date: new Date(Date.now() + 86_400_000).toISOString(), category: 'Community' } } })).data.event;
+  const rejectEvent = (await call('/events', { method: 'POST', cookie: companyCookie, body: { event: { title: 'Smoke Test Rejected Event', venue: 'Chennai', location: 'Chennai, Tamil Nadu', state: 'Tamil Nadu', district: 'Chennai', date: new Date(Date.now() + 86_400_000).toISOString(), category: 'Community' } } })).data.event;
     cleanup.rejectedEventId = rejectEvent.id;
     await call(`/admin/jobs/${rejectJob.id}/review`, { method: 'PATCH', cookie: adminCookie, body: { decision: 'reject', reason: 'Temporary test rejection' } });
     await call(`/admin/events/${encodeURIComponent(rejectEvent.id)}/review`, { method: 'PATCH', cookie: adminCookie, body: { decision: 'reject', reason: 'Temporary test rejection' } });

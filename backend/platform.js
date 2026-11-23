@@ -203,6 +203,16 @@ function registrationUrlOf(value, fallback = '') {
   return registrationUrl;
 }
 
+function eventLocationOf(input = {}, current = {}) {
+  const stateProvided = Object.hasOwn(input, 'state');
+  const districtProvided = Object.hasOwn(input, 'district');
+  const state = String(stateProvided ? input.state || '' : current.state || '').trim().slice(0, 80);
+  const district = String(districtProvided ? input.district || '' : current.district || '').trim().slice(0, 80);
+  if (district.toLowerCase() === 'all india') return { state: 'All India', district: 'All India', location: 'All India' };
+  const fallbackLocation = String(Object.hasOwn(input, 'location') ? input.location || '' : current.location || '').trim().slice(0, 120);
+  return { state, district, location: district ? [district, state].filter(Boolean).join(', ') : fallbackLocation };
+}
+
 function updatedEventData(input, current, { allowOrganizer = false } = {}) {
   const date = new Date(input?.date);
   const title = String(input?.title || '').trim().slice(0, 120);
@@ -215,10 +225,11 @@ function updatedEventData(input, current, { allowOrganizer = false } = {}) {
   const image = String(input?.image || '').trim().slice(0, 2048);
   if (image && !/^https:\/\//i.test(image) && !image.startsWith('data:image/') && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) throw Object.assign(new Error('Use an HTTPS image URL or a valid uploaded image.'), { status: 400 });
   const registrationUrl = registrationUrlOf(input?.registrationUrl, current.registrationUrl || '');
+  const eventLocation = eventLocationOf(input, current);
   return {
     ...current,
     title, venue, date: date.toISOString(), contactPhone, image, registrationUrl,
-    location: String(input?.location || '').trim().slice(0, 120), time: String(input?.time || '').trim().slice(0, 20),
+    ...eventLocation, time: String(input?.time || '').trim().slice(0, 20),
     category: String(input?.category || 'Community').trim().slice(0, 80), sector: String(input?.sector || '').trim().slice(0, 80),
     specialty: String(input?.specialty || '').trim().slice(0, 80), description: String(input?.description || '').trim().slice(0, 1200),
     ...(allowOrganizer ? { organizer: String(input?.organizer || '').trim().slice(0, 120) || current.organizer || '' } : {}),
@@ -661,13 +672,15 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   router.post('/events', companyOnly, async (req, res) => {
     const event = req.body?.event || {};
     if (!event.title?.trim() || !event.date || !event.venue?.trim()) return fail(res, 400, 'Event name, date and venue are required.');
+    const eventLocation = eventLocationOf(event);
+    if (!eventLocation.district || (eventLocation.district !== 'All India' && !eventLocation.state)) return fail(res, 400, 'Choose a state and district, or choose All India for a nationwide event.');
     if (new Date(event.date).getTime() < Date.now() - 86_400_000) return fail(res, 400, 'Choose today or a future date.');
     let registrationUrl;
     try { registrationUrl = registrationUrlOf(event.registrationUrl); }
     catch (error) { return fail(res, error.status || 400, error.message); }
     const id = `happening-${randomUUID()}`;
     const company = await companyById(db, req.accountId);
-    const data = { ...event, registrationUrl, id, organizer: company.company_name, organizerId: company.id, source: 'Community', createdByUser: true, registeredCount: 0 };
+    const data = { ...event, ...eventLocation, registrationUrl, id, organizer: company.company_name, organizerId: company.id, source: 'Community', createdByUser: true, registeredCount: 0 };
     await db.execute("INSERT INTO events (id, company_id, data_json, status) VALUES (?, ?, ?, 'pending')", [id, req.accountId, JSON.stringify(data)]);
     res.status(201).json({ event: { ...data, status: 'pending' } });
   });
@@ -959,7 +972,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const date = new Date(input.date);
     const contactPhone = input.contactPhone ? phoneOf(input.contactPhone) : '';
     const image = String(input.image || '').trim().slice(0, 2048);
+    const eventLocation = eventLocationOf(input);
     if (!title || !organizer || !venue || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() - 86_400_000) return fail(res, 400, 'Add an event name, organiser, venue and a current or future date.');
+    if (!eventLocation.district || (eventLocation.district !== 'All India' && !eventLocation.state)) return fail(res, 400, 'Choose a state and district, or choose All India for a nationwide event.');
     if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) return fail(res, 400, 'Enter a valid 10-digit contact number.');
     if (image && !/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) return fail(res, 400, 'Use an HTTPS image URL or upload an image.');
     let registrationUrl;
@@ -971,7 +986,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     }
     const id = `happening-${randomUUID()}`;
     const reviewedAt = mysqlDate(new Date());
-    const data = { id, title, organizer, venue, location: String(input.location || '').trim().slice(0, 120), date: date.toISOString(), time: String(input.time || '').trim().slice(0, 20),
+    const data = { id, title, organizer, venue, ...eventLocation, date: date.toISOString(), time: String(input.time || '').trim().slice(0, 20),
       category: String(input.category || 'Community').trim().slice(0, 80), sector: String(input.sector || '').trim().slice(0, 80),
       specialty: String(input.specialty || '').trim().slice(0, 80), description: String(input.description || '').trim().slice(0, 1200),
       contactPhone, image, registrationUrl, source: 'Hapzo360', createdByUser: true, createdByAdmin: true, registeredCount: 0 };

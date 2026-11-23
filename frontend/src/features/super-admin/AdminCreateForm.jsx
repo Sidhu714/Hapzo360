@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Sparkles } from 'lucide-react';
-import { DISTRICTS } from '../../data/indiaLocations';
+import { ALL_INDIA, STATES, districtOptionsForState, eventLocation } from '../../data/indiaLocations';
 import SearchSelect from '../openings/SearchSelect';
 import { fallbackSuggestions, suggestionBank } from '../happenings/eventSuggestions';
 import { createAdminEvent, uploadEditorialImage } from './adminApi';
@@ -14,7 +14,7 @@ const sectorSpecialties = {
   Engineering: ['Civil', 'Mechanical', 'Electrical', 'Electronics', 'Automotive', 'Manufacturing', 'Construction'],
   Technology: ['Software', 'AI and data', 'Cybersecurity', 'Cloud', 'Hardware', 'IT services', 'Product development'],
 };
-const emptyEvent = { title: '', organizer: '', district: '', venue: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', category: 'Community', sector: 'Textile', specialty: '', description: '', contactPhone: '', registrationUrl: '', imageUrl: '' };
+const emptyEvent = { title: '', organizer: '', state: '', district: '', venue: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', category: 'Community', sector: 'Textile', specialty: '', description: '', contactPhone: '', registrationUrl: '', imageUrl: '' };
 const fieldClass = 'block space-y-2 text-sm font-bold text-[#11192f]';
 const inputClass = 'w-full rounded-xl border border-[#11192f]/10 bg-white px-4 py-3.5 text-sm font-normal text-[#11192f] outline-none placeholder:text-[#11192f]/35 focus:border-[#50627e] focus:ring-2 focus:ring-[#ff5577]/30';
 
@@ -63,7 +63,7 @@ export default function AdminCreateForm({ onCreated }) {
   const submit = async (event) => {
     event.preventDefault();
     setError('');
-    if (!form.title.trim() || !form.organizer.trim() || !form.venue.trim() || !form.district) return setError('Add the event name, organiser, venue and district.');
+    if (!form.title.trim() || !form.organizer.trim() || !form.venue.trim() || !form.district || (form.district !== ALL_INDIA && !form.state)) return setError('Add the event name, organiser, venue, state and district. Choose All India for a nationwide event.');
     if (!form.date || form.date < todayInIndia()) return setError('Choose today or a future date.');
     const hour = Number(form.timeHour);
     const minute = Number(form.timeMinute || '0');
@@ -75,7 +75,7 @@ export default function AdminCreateForm({ onCreated }) {
       const hour24 = form.timeHour ? hour % 12 + (form.timePeriod === 'PM' ? 12 : 0) : 12;
       const date = new Date(`${form.date}T${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+05:30`).toISOString();
       const time = form.timeHour ? `${hour}:${String(minute).padStart(2, '0')} ${form.timePeriod}` : '';
-      await createAdminEvent({ title: form.title.trim(), organizer: form.organizer.trim(), venue: form.venue.trim(), location: `${form.district}, Tamil Nadu`, date, time, category: form.category.trim(), sector: form.sector.trim(), specialty: form.specialty.trim(), description: form.description.trim(), contactPhone: form.contactPhone, registrationUrl: form.registrationUrl.trim(), image });
+      await createAdminEvent({ title: form.title.trim(), organizer: form.organizer.trim(), venue: form.venue.trim(), ...eventLocation(form.state, form.district), date, time, category: form.category.trim(), sector: form.sector.trim(), specialty: form.specialty.trim(), description: form.description.trim(), contactPhone: form.contactPhone, registrationUrl: form.registrationUrl.trim(), image });
       onCreated();
     } catch (cause) { setError(cause.message || 'Could not publish the event.'); }
     finally { setBusy(false); }
@@ -89,7 +89,7 @@ export default function AdminCreateForm({ onCreated }) {
       <header className="bg-gradient-to-br from-[#11192f] via-[#172847] to-[#243c60] px-5 py-6 text-white sm:px-8"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#ffe66d]">Hapzo360 community</p><h2 className="mt-2 text-2xl font-black tracking-tight">Add a new event</h2><p className="mt-1 text-sm text-white/75">Give people a reason to get together.</p></header>
       <div className="space-y-5 p-5 sm:p-8">
         <label className={fieldClass}>Event name<input required maxLength={100} placeholder="e.g. Weekend pottery workshop" className={inputClass} {...bind('title')} /></label>
-        <div className="grid gap-4 sm:grid-cols-2"><label className={fieldClass}>Organiser<input required maxLength={120} placeholder="Name shown on the event" className={inputClass} {...bind('organizer')} /></label><label className={fieldClass}>District<select required className={inputClass} {...bind('district')}><option value="">Select district</option>{DISTRICTS['Tamil Nadu'].map((district) => <option key={district} value={district}>{district}</option>)}</select></label></div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><label className={fieldClass}>Organiser<input required maxLength={120} placeholder="Name shown on the event" className={inputClass} {...bind('organizer')} /></label><label className={fieldClass}>State<select className={inputClass} value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value, district: '' }))}><option value="">Select state</option>{STATES.map((state) => <option key={state} value={state}>{state}</option>)}</select></label><label className={fieldClass}>District<select required className={inputClass} value={form.district} onChange={(event) => update('district', event.target.value)}><option value="">Select district</option>{districtOptionsForState(form.state).map((district) => <option key={district} value={district}>{district}</option>)}</select><span className="block text-xs font-normal text-[#11192f]/50">Choose All India for a nationwide event.</span></label></div>
         <div className="grid gap-4 sm:grid-cols-2"><label className={fieldClass}>Date<input required type="date" min={todayInIndia()} inputMode="none" onKeyDown={(event) => { if (/^[0-9]$/.test(event.key) || ['Backspace', 'Delete'].includes(event.key)) event.preventDefault(); }} onPaste={(event) => event.preventDefault()} onDrop={(event) => event.preventDefault()} className={inputClass} {...bind('date')} /><span className="block text-xs font-normal text-[#11192f]/50">Choose today or a future date from the calendar.</span></label><div className={fieldClass}>Time <span className="font-normal text-[#11192f]/45">(optional)</span><div className="grid grid-cols-[1fr_auto_1fr_1.2fr] items-center gap-2"><input type="text" inputMode="numeric" maxLength={2} placeholder="hh" aria-label="Hour, 1 to 12" className={`${inputClass} min-w-0 text-center`} value={form.timeHour} onChange={(event) => update('timeHour', event.target.value.replace(/\D/g, '').slice(0, 2))} /><span className="font-bold text-[#11192f]/50">:</span><input type="text" inputMode="numeric" maxLength={2} placeholder="mm" aria-label="Minutes, 00 to 59" className={`${inputClass} min-w-0 text-center`} value={form.timeMinute} onChange={(event) => update('timeMinute', event.target.value.replace(/\D/g, '').slice(0, 2))} /><select aria-label="AM or PM" className={`${inputClass} min-w-0`} {...bind('timePeriod')}><option>AM</option><option>PM</option></select></div><span className="block text-xs font-normal text-[#11192f]/50">Enter a 12-hour time and select AM or PM.</span></div></div>
         <label className={fieldClass}>Venue<input required maxLength={120} placeholder="e.g. Town Hall, Tiruppur" className={inputClass} {...bind('venue')} /></label>
         <label className={fieldClass}>Contact phone <span className="font-normal text-[#11192f]/45">(optional)</span><input type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit phone number" className={inputClass} value={form.contactPhone} onChange={(event) => update('contactPhone', event.target.value.replace(/\D/g, '').slice(0, 10))} /><span className="block text-xs font-normal text-[#11192f]/50">Shown to people who open the event details.</span></label>

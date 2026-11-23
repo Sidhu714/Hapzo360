@@ -706,6 +706,12 @@ export function warmHappenings() {
 router.get("/search", async (req, res) => {
   const district = String(req.query.district || "").trim().slice(0, 80);
   if (!district) return res.status(400).json({ error: "Choose a district to search." });
+  // Nationwide happenings are published by Hapzo360 users and returned by the
+  // main events route. Third-party crawlers are city based, so do not invent a
+  // misleading city result for the explicit All India selection.
+  if (district.toLowerCase() === 'all india') {
+    return res.json({ events: [], available: true, district: 'All India', nationwide: true, sources: [] });
+  }
   if (!SOURCES.some((s) => s.enabled)) {
     return res.status(503).json({ events: [], available: false, error: "No event source is enabled." });
   }

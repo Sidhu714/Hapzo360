@@ -8,7 +8,7 @@ import EventEditModal from './EventEditModal';
 import { listCommunityEvents, listMyCompanyEvents, listMyEventRegistrations, publishCommunityEvent, updateCommunityEvent, deleteCommunityEvent, registerForCommunityEvent, registerForExternalEvent, continueExternalEventRegistration, uploadVerificationClip } from './eventsApi';
 import { usePeopleAuth } from '../../context/PeopleAuthContext';
 import { useCompanyAuth } from '../../context/CompanyAuthContext';
-import { DISTRICTS } from '../../data/indiaLocations';
+import { ALL_INDIA, STATES, districtOptionsForState, eventLocation } from '../../data/indiaLocations';
 import API_BASE_URL from '../../config/api';
 import EventPulse from './EventCard';
 import { createClipRecorder, canRecordVideo, saveClip } from './FaceClip';
@@ -17,7 +17,6 @@ const API_URL = import.meta.env.VITE_EVENTS_API_URL || '';
 const ONLINE_EVENTS_API_URL = `${API_BASE_URL}/api/happenings/search`;
 const EVENT_CACHE_KEY = 'happening.events.cache.v1';
 const EVENT_DETAILS_CACHE_KEY = 'happening.event-details.v1.';
-const HAPPENING_DISTRICTS = DISTRICTS['Tamil Nadu'] || [];
 const categories = ['All events', 'Business', 'Community', 'Hackathon', 'Meetups', 'Workshops', 'Webinar', 'Conference', 'Expo'];
 const TIME_FILTERS = [
   { value: 'Any time', label: 'Any time' },
@@ -81,6 +80,18 @@ function mergeEvents(...groups) {
 }
 
 const titleCase = s => String(s).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+function eventMatchesSelectedLocation(event, state, district) {
+  const eventDistrict = String(event?.district || '').trim();
+  const eventState = String(event?.state || '').trim();
+  if (district === ALL_INDIA) return eventDistrict === ALL_INDIA;
+  if (!district) return false;
+  if (eventDistrict === ALL_INDIA) return true;
+  if (eventDistrict) return eventDistrict === district && (!eventState || eventState === state);
+  // Older happenings only stored a display location. Keep them discoverable
+  // when that value clearly matches the selected district and state.
+  return String(event?.location || '').toLowerCase().includes(`${district}, ${state}`.toLowerCase());
+}
 
 function formatDate(value) {
   if (!value) return 'Date to be announced';
@@ -503,7 +514,7 @@ function normalizeAngle(angle) {
   return ((angle + 180) % 360 + 360) % 360 - 180;
 }
 
-const EMPTY_FORM = { title: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', registrationUrl: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
+const EMPTY_FORM = { title: '', state: '', district: '', date: '', timeHour: '', timeMinute: '00', timePeriod: 'AM', venue: '', contactPhone: '', registrationUrl: '', category: 'Community', sector: '', specialty: '', termsAccepted: false, description: '', image: '' };
 const EMPTY_EXTERNAL_REGISTRATION = { email: '', phone: '', password: '', termsAccepted: false };
 
 /* ---------- Main component ---------- */
@@ -526,6 +537,7 @@ export default function Happening() {
   const [onlineAvailable, setOnlineAvailable] = useState(null);
   const [onlineMeta, setOnlineMeta] = useState(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [state, setState] = useState('Tamil Nadu');
   const [district, setDistrict] = useState('Coimbatore');
   const [category, setCategory] = useState('All events');
   const [query, setQuery] = useState('');
@@ -856,7 +868,14 @@ export default function Happening() {
   // client-side in `filteredEvents`, so only the district triggers a request.
   useEffect(() => {
     const controller = new AbortController();
-    const params = new URLSearchParams({ district, state: 'Tamil Nadu' });
+    if (!district || district === ALL_INDIA) {
+      setOnlineEvents([]);
+      setOnlineMeta(null);
+      setOnlineAvailable(true);
+      setOnlineLoading(false);
+      return undefined;
+    }
+    const params = new URLSearchParams({ district, state });
 
     setOnlineLoading(true);
     setOnlineEvents([]);
@@ -880,7 +899,7 @@ export default function Happening() {
       });
 
     return () => controller.abort();
-  }, [district]);
+  }, [district, state]);
 
   useEffect(() => {
     if (!selectedEvent?.url || selectedEvent.createdByUser || selectedEvent.scraped) return undefined;
@@ -894,7 +913,11 @@ export default function Happening() {
     return () => controller.abort();
   }, [selectedEvent?.id, selectedEvent?.url]);
 
-  const allEvents = useMemo(() => mergeEvents(events, communityEvents, onlineEvents), [events, communityEvents, onlineEvents]);
+  const allEvents = useMemo(() => mergeEvents(
+    events.filter((event) => !event.createdByUser || eventMatchesSelectedLocation(event, state, district)),
+    communityEvents.filter((event) => eventMatchesSelectedLocation(event, state, district)),
+    onlineEvents,
+  ), [events, communityEvents, onlineEvents, state, district]);
 
   const filteredEvents = useMemo(() => {
     const needle = deferredQuery.trim().toLowerCase();
@@ -1072,6 +1095,7 @@ export default function Happening() {
     if (otpState !== 'verified') { setFormError('Verify your mobile number with the demo code first.'); return; }
     if (faceState !== 'verified' || !clip) { setFormError('Complete the live video check first.'); return; }
     if (!form.termsAccepted) { setFormError('Please agree to the event posting Terms & Conditions before publishing.'); return; }
+    if (!form.district || (form.district !== ALL_INDIA && !form.state)) { setFormError('Choose a state and district, or choose All India for a nationwide event.'); return; }
     if (!form.date || form.date < todayInIndia()) { setFormError('Choose today or a future date for the event.'); return; }
     if (form.contactPhone && !/^\d{10}$/.test(form.contactPhone)) { setFormError('Enter a valid 10-digit contact phone number.'); return; }
     const hasTime = Boolean(form.timeHour);
@@ -1088,7 +1112,7 @@ export default function Happening() {
     const displayTime = hasTime ? `${hour12}:${String(minute).padStart(2, '0')} ${form.timePeriod}` : '';
     const newEvent = {
       id: `happening-${id}`, title: form.title.trim(), date: new Date(`${form.date}T${time24}:00+05:30`).toISOString(),
-      time: displayTime, venue: form.venue.trim(), contactPhone: form.contactPhone, registrationUrl: form.registrationUrl.trim(), category: form.category, sector: form.sector, specialty: form.specialty, description: form.description.trim(), image: form.image,
+      time: displayTime, venue: form.venue.trim(), ...eventLocation(form.state, form.district), contactPhone: form.contactPhone, registrationUrl: form.registrationUrl.trim(), category: form.category, sector: form.sector, specialty: form.specialty, description: form.description.trim(), image: form.image,
       registeredCount: 0, source: 'Community', createdByUser: true, organizer: eventOwner?.name || '', organizerId: eventOwner?.id || '',
       hasVerificationClip: true
     };
@@ -1234,18 +1258,23 @@ export default function Happening() {
                 <h2 className="text-3xl font-black tracking-[-0.055em] sm:text-4xl">What's on the calendar?</h2>
                 <p className="mt-2 text-sm leading-6 text-[#0b1220]/75 sm:text-base">Community events and online listings for hackathons, meetups, expos, workshops, webinars and conferences.</p>
               </div>
-              <label className="flex shrink-0 items-center gap-2 self-start rounded-full border border-[#0b1220]/15 bg-white px-4 py-2.5 text-sm font-medium text-[#0b1220] md:self-auto">
-                <MapPin size={15} className="text-[#1f46c9]" />
-                <span className="sr-only">Choose a Tamil Nadu district</span>
-                <select
-                  value={district}
-                  onChange={event => setDistrict(event.target.value)}
-                  aria-label="Choose a Tamil Nadu district"
-                  className="max-w-[190px] cursor-pointer bg-transparent text-[#0b1220] outline-none [&>option]:text-[#0b1220]"
-                >
-                  {HAPPENING_DISTRICTS.map(item => <option key={item} value={item}>{item}, Tamil Nadu</option>)}
-                </select>
-              </label>
+              <div className="grid w-full shrink-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2 md:self-auto">
+                <label className="flex min-w-0 items-center gap-2 rounded-full border border-[#0b1220]/15 bg-white px-4 py-2.5 text-sm font-medium text-[#0b1220]">
+                  <MapPin size={15} className="shrink-0 text-[#1f46c9]" />
+                  <span className="sr-only">Choose a state</span>
+                  <select value={state} onChange={(event) => { setState(event.target.value); setDistrict(''); }} aria-label="Choose a state" className="min-w-0 flex-1 cursor-pointer bg-transparent text-[#0b1220] outline-none [&>option]:text-[#0b1220]">
+                    <option value="">Select state</option>
+                    {STATES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </label>
+                <label className="flex min-w-0 items-center gap-2 rounded-full border border-[#0b1220]/15 bg-white px-4 py-2.5 text-sm font-medium text-[#0b1220]">
+                  <MapPin size={15} className="shrink-0 text-[#1f46c9]" />
+                  <span className="sr-only">Choose a district</span>
+                  <select value={district} onChange={(event) => setDistrict(event.target.value)} aria-label="Choose a district" className="min-w-0 flex-1 cursor-pointer bg-transparent text-[#0b1220] outline-none [&>option]:text-[#0b1220]">
+                    {districtOptionsForState(state).map((item) => <option key={item} value={item}>{item === ALL_INDIA ? ALL_INDIA : `${item}, ${state}`}</option>)}
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div className="rounded-[1.5rem] border border-[#0b1220]/10 bg-white p-3 text-[#0b1220] shadow-xl shadow-[#0b1220]/10 sm:p-4">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { ALL_INDIA, STATES, districtOptionsForState, eventLocation } from '../../data/indiaLocations';
 
 const dayValue = (value) => {
   const date = new Date(value || '');
@@ -10,7 +11,7 @@ const dayValue = (value) => {
 export default function EventEditModal({ event, allowOrganizer = false, onClose, onSave, onUploadImage, busy = false, error = '' }) {
   const [form, setForm] = useState(() => ({
     title: event.title || '', organizer: event.organizer || '', date: dayValue(event.date), time: event.time || '',
-    venue: event.venue || '', location: event.location || '', category: event.category || 'Community', sector: event.sector || '',
+    venue: event.venue || '', location: event.location || '', state: event.state || '', district: event.district || '', category: event.category || 'Community', sector: event.sector || '',
     specialty: event.specialty || '', description: event.description || '', contactPhone: event.contactPhone || '', registrationUrl: event.registrationUrl || '', image: event.image || '',
   }));
   const [imageMode, setImageMode] = useState('upload');
@@ -44,7 +45,8 @@ export default function EventEditModal({ event, allowOrganizer = false, onClose,
     try {
       setImageBusy(true);
       const image = canUploadImage && imageMode === 'upload' && imageFile ? await onUploadImage(imageFile) : form.image;
-      await onSave({ ...form, image, date: form.date ? new Date(`${form.date}T12:00:00+05:30`).toISOString() : '' });
+      const selectedLocation = form.district ? eventLocation(form.state, form.district) : { state: form.state, district: '', location: form.location };
+      await onSave({ ...form, ...selectedLocation, image, date: form.date ? new Date(`${form.date}T12:00:00+05:30`).toISOString() : '' });
     } catch (cause) { setImageError(cause.message || 'Could not upload the event image.'); }
     finally { setImageBusy(false); }
   };
@@ -57,7 +59,8 @@ export default function EventEditModal({ event, allowOrganizer = false, onClose,
         <label className="grid gap-1.5 text-sm font-bold">Date<input required type="date" value={form.date} onChange={change('date')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold">Time<input value={form.time} onChange={change('time')} placeholder="5:00 PM" maxLength={20} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold sm:col-span-2">Venue<input required maxLength={200} value={form.venue} onChange={change('venue')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
-        <label className="grid gap-1.5 text-sm font-bold">Location<input maxLength={120} value={form.location} onChange={change('location')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
+        <label className="grid gap-1.5 text-sm font-bold">State<select value={form.state} onChange={(input) => setForm((current) => ({ ...current, state: input.target.value, district: '' }))} className="rounded-xl border border-slate-200 bg-white px-3 py-3 font-normal"><option value="">Select state</option>{STATES.map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
+        <label className="grid gap-1.5 text-sm font-bold">District<select value={form.district} onChange={change('district')} className="rounded-xl border border-slate-200 bg-white px-3 py-3 font-normal"><option value="">Keep current location</option>{districtOptionsForState(form.state).map((district) => <option key={district} value={district}>{district}</option>)}</select><span className="text-xs font-normal text-slate-500">Choose {ALL_INDIA} for a nationwide event.</span></label>
         <label className="grid gap-1.5 text-sm font-bold">Category<input maxLength={80} value={form.category} onChange={change('category')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold">Sector<input maxLength={80} value={form.sector} onChange={change('sector')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>
         <label className="grid gap-1.5 text-sm font-bold">Specialty<input maxLength={80} value={form.specialty} onChange={change('specialty')} className="rounded-xl border border-slate-200 px-3 py-3 font-normal" /></label>

@@ -16,6 +16,7 @@ import {
 // ./eventSuggestions.js and export them (see the note that came with this file).
 import { suggestionBank, fallbackSuggestions } from './eventSuggestions';
 import SearchSelect from '../openings/SearchSelect';
+import { ALL_INDIA, STATES, districtOptionsForState } from '../../data/indiaLocations';
 
 const categories = ['Business', 'Community', 'Workshops', 'Webinar', 'Conference', 'Expo'];
 const sectors = ['Textile', 'Education', 'Engineering', 'Technology'];
@@ -220,6 +221,38 @@ export default function AddEventModal({
                             className={inputBase}
                         />
                     </label>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <label className="block space-y-2">
+                            <span className="text-sm font-bold">State</span>
+                            <div className="relative">
+                                <select
+                                    name="state"
+                                    value={form.state || ''}
+                                    onChange={(event) => {
+                                        onFieldChange(event);
+                                        onFieldChange({ target: { name: 'district', value: '' } });
+                                    }}
+                                    className={`${inputBase} appearance-none pr-11`}
+                                >
+                                    <option value="">Select state</option>
+                                    {STATES.map((state) => <option key={state} value={state}>{state}</option>)}
+                                </select>
+                                <ChevronDown size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#11192f]/50" />
+                            </div>
+                        </label>
+                        <label className="block space-y-2">
+                            <span className="text-sm font-bold">District</span>
+                            <div className="relative">
+                                <select name="district" value={form.district || ''} onChange={onFieldChange} required className={`${inputBase} appearance-none pr-11`}>
+                                    <option value="">Select district</option>
+                                    {districtOptionsForState(form.state).map((district) => <option key={district} value={district}>{district}</option>)}
+                                </select>
+                                <ChevronDown size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#11192f]/50" />
+                            </div>
+                            <span className="block text-xs text-[#11192f]/50">Choose {ALL_INDIA} for an event open across the country.</span>
+                        </label>
+                    </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <label className="block space-y-2">

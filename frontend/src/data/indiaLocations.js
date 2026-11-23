@@ -1,33 +1,44 @@
-// States / UTs and their districts. States without a list here let the user type the district.
-export const STATES = [
-  'Tamil Nadu'
-];
+import districtsByStateCode from 'india-state-district/dist/data/data.json';
 
-// 'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh',
-//   'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana',
-//   'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep',
-//   'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry',
-//   'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand',
-//   'West Bengal',
-
-export const DISTRICTS = {
-  'Tamil Nadu': [
-    'Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore', 'Dharmapuri', 'Dindigul', 'Erode',
-    'Kallakurichi', 'Kancheepuram', 'Kanniyakumari', 'Karur', 'Krishnagiri', 'Madurai', 'Mayiladuthurai',
-    'Nagapattinam', 'Namakkal', 'Nilgiris', 'Perambalur', 'Pudukkottai', 'Ramanathapuram', 'Ranipet',
-    'Salem', 'Sivaganga', 'Tenkasi', 'Thanjavur', 'Theni', 'Thoothukudi', 'Tiruchirappalli', 'Tirunelveli',
-    'Tirupathur', 'Tiruppur', 'Tiruvallur', 'Tiruvannamalai', 'Tiruvarur', 'Vellore', 'Viluppuram',
-    'Virudhunagar',
-  ],
-  Kerala: [
-    'Alappuzha', 'Ernakulam', 'Idukki', 'Kannur', 'Kasaragod', 'Kollam', 'Kottayam', 'Kozhikode',
-    'Malappuram', 'Palakkad', 'Pathanamthitta', 'Thiruvananthapuram', 'Thrissur', 'Wayanad',
-  ],
-  Karnataka: [
-    'Bagalkot', 'Ballari', 'Belagavi', 'Bengaluru Rural', 'Bengaluru Urban', 'Bidar', 'Chamarajanagar',
-    'Chikkaballapur', 'Chikkamagaluru', 'Chitradurga', 'Dakshina Kannada', 'Davanagere', 'Dharwad', 'Gadag',
-    'Hassan', 'Haveri', 'Kalaburagi', 'Kodagu', 'Kolar', 'Koppal', 'Mandya', 'Mysuru', 'Raichur',
-    'Ramanagara', 'Shivamogga', 'Tumakuru', 'Udupi', 'Uttara Kannada', 'Vijayanagara', 'Vijayapura', 'Yadgir',
-  ],
-  Puducherry: ['Karaikal', 'Mahe', 'Puducherry', 'Yanam'],
+// India currently has 28 states and 8 union territories. The district data is
+// bundled with the app so the form keeps working even when a visitor is offline.
+const STATE_NAMES = {
+  AN: 'Andaman and Nicobar Islands', AP: 'Andhra Pradesh', AR: 'Arunachal Pradesh', AS: 'Assam',
+  BR: 'Bihar', CH: 'Chandigarh', CG: 'Chhattisgarh', DH: 'Dadra and Nagar Haveli and Daman and Diu',
+  DL: 'Delhi', GA: 'Goa', GJ: 'Gujarat', HR: 'Haryana', HP: 'Himachal Pradesh',
+  JK: 'Jammu and Kashmir', JH: 'Jharkhand', KA: 'Karnataka', KL: 'Kerala', LA: 'Ladakh',
+  LD: 'Lakshadweep', MP: 'Madhya Pradesh', MH: 'Maharashtra', MN: 'Manipur', ML: 'Meghalaya',
+  MZ: 'Mizoram', NL: 'Nagaland', OD: 'Odisha', PY: 'Puducherry', PB: 'Punjab', RJ: 'Rajasthan',
+  SK: 'Sikkim', TN: 'Tamil Nadu', TG: 'Telangana', TR: 'Tripura', UP: 'Uttar Pradesh',
+  UK: 'Uttarakhand', WB: 'West Bengal',
 };
+
+export const ALL_INDIA = 'All India';
+
+export const STATES = Object.entries(STATE_NAMES)
+  .filter(([code]) => Array.isArray(districtsByStateCode[code]))
+  .map(([, name]) => name)
+  .sort((left, right) => left.localeCompare(right, 'en-IN'));
+
+export const DISTRICTS = Object.fromEntries(
+  Object.entries(STATE_NAMES).map(([code, name]) => [
+    name,
+    [...new Set((districtsByStateCode[code] || []).map((district) => String(district).trim()).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right, 'en-IN')),
+  ])
+);
+
+// "All India" deliberately remains selectable before a state. It represents an
+// event that is open nationwide rather than an incomplete location selection.
+export function districtOptionsForState(state) {
+  return [ALL_INDIA, ...(DISTRICTS[state] || [])];
+}
+
+export function eventLocation(state, district) {
+  if (district === ALL_INDIA) return { state: ALL_INDIA, district: ALL_INDIA, location: ALL_INDIA };
+  return {
+    state: String(state || '').trim(),
+    district: String(district || '').trim(),
+    location: [district, state].filter(Boolean).join(', '),
+  };
+}
