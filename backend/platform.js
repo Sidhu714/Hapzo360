@@ -213,12 +213,63 @@ function eventLocationOf(input = {}, current = {}) {
   return { state, district, location: district ? [district, state].filter(Boolean).join(', ') : fallbackLocation };
 }
 
+function eventDateKey(value) {
+  const raw = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const fields = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
+}
+
+function eventTaxonomyValue(value, customValue, fallback, label) {
+  const selected = String(value ?? fallback ?? '').trim();
+  if (selected.toLowerCase() === 'other') {
+    const custom = String(customValue || '').trim();
+    if (!custom) throw Object.assign(new Error(`Enter a custom ${label}.`), { status: 400 });
+    return custom.slice(0, 80);
+  }
+  return selected.slice(0, 80);
+}
+
+function eventDocumentOf(input, current = {}) {
+  const documentUrl = String(input?.documentUrl === undefined ? current.documentUrl || '' : input.documentUrl || '').trim();
+  if (documentUrl && !/^\/api\/event-documents\/[0-9a-f-]{36}$/i.test(documentUrl)) {
+    throw Object.assign(new Error('Upload a valid PDF event document.'), { status: 400 });
+  }
+  const documentName = documentUrl
+    ? String(input?.documentName === undefined ? current.documentName || '' : input.documentName || '').trim().replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 180)
+    : '';
+  return { documentUrl, documentName };
+}
+
+async function storedEventDocument(db, documentUrl) {
+  if (!documentUrl) return true;
+  const match = documentUrl.match(/^\/api\/event-documents\/([0-9a-f-]{36})$/i);
+  if (!match) return false;
+  const [[row]] = await db.execute("SELECT id FROM editorial_images WHERE id = ? AND mime_type = 'application/pdf'", [match[1]]);
+  return Boolean(row);
+}
+
+function eventPdfUpload(db) {
+  return async (req, res) => {
+    const bytes = req.body;
+    if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 10 * 1024 * 1024) return fail(res, 400, 'Choose a PDF file under 10 MB.');
+    if (!bytes.subarray(0, 1024).includes(Buffer.from('%PDF-'))) return fail(res, 400, 'The selected file is not a valid PDF.');
+    const id = randomUUID();
+    await db.execute("INSERT INTO editorial_images (id, mime_type, image) VALUES (?, 'application/pdf', ?)", [id, bytes]);
+    res.status(201).json({ document: `/api/event-documents/${id}` });
+  };
+}
+
 function updatedEventData(input, current, { allowOrganizer = false } = {}) {
   const date = new Date(input?.date);
+  const endDate = eventDateKey(input?.endDate ?? current.endDate ?? input?.date);
   const title = String(input?.title || '').trim().slice(0, 120);
   const venue = String(input?.venue || '').trim().slice(0, 200);
-  if (!title || !venue || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() - 86_400_000) {
-    throw Object.assign(new Error('Add an event name, venue and a current or future date.'), { status: 400 });
+  if (!title || !venue || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() - 86_400_000 || !endDate || endDate < eventDateKey(date)) {
+    throw Object.assign(new Error('Add an event name, venue, and a valid date range with the end date on or after the start date.'), { status: 400 });
   }
   const contactPhone = input?.contactPhone ? phoneOf(input.contactPhone) : '';
   if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) throw Object.assign(new Error('Enter a valid 10-digit contact phone number.'), { status: 400 });
@@ -226,12 +277,16 @@ function updatedEventData(input, current, { allowOrganizer = false } = {}) {
   if (image && !/^https:\/\//i.test(image) && !image.startsWith('data:image/') && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) throw Object.assign(new Error('Use an HTTPS image URL or a valid uploaded image.'), { status: 400 });
   const registrationUrl = registrationUrlOf(input?.registrationUrl, current.registrationUrl || '');
   const eventLocation = eventLocationOf(input, current);
+  const category = eventTaxonomyValue(input?.category, input?.categoryOther, current.category || 'Community', 'category');
+  const sector = eventTaxonomyValue(input?.sector, input?.sectorOther, current.sector || '', 'sector');
+  const specialty = eventTaxonomyValue(input?.specialty, input?.specialtyOther, current.specialty || '', 'specialty or activity');
+  const document = eventDocumentOf(input, current);
   return {
     ...current,
-    title, venue, date: date.toISOString(), contactPhone, image, registrationUrl,
+    title, venue, date: date.toISOString(), endDate, contactPhone, image, registrationUrl,
     ...eventLocation, time: String(input?.time || '').trim().slice(0, 20),
-    category: String(input?.category || 'Community').trim().slice(0, 80), sector: String(input?.sector || '').trim().slice(0, 80),
-    specialty: String(input?.specialty || '').trim().slice(0, 80), description: String(input?.description || '').trim().slice(0, 1200),
+    category, sector,
+    specialty, ...document, description: String(input?.description || '').trim().slice(0, 1200),
     ...(allowOrganizer ? { organizer: String(input?.organizer || '').trim().slice(0, 120) || current.organizer || '' } : {}),
   };
 }
@@ -340,6 +395,19 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
   const adminOnly = requireAdminRole(db, ['admin']);
   const anyAdmin = requireAdminRole(db, ['admin', 'super_admin']);
   const superAdminOnly = requireAdminRole(db, ['super_admin']);
+
+  router.get('/event-documents/:id', async (req, res) => {
+    const documentUrl = `/api/event-documents/${req.params.id}`;
+    const [[row]] = await db.execute(`SELECT ei.image, e.data_json FROM editorial_images ei
+      JOIN events e ON JSON_UNQUOTE(JSON_EXTRACT(e.data_json, '$.documentUrl')) = ?
+      WHERE ei.id = ? AND ei.mime_type = 'application/pdf' AND e.status = 'approved' AND e.deleted_at IS NULL
+      LIMIT 1`, [documentUrl, req.params.id]);
+    if (!row) return res.status(404).type('text/plain').send('Event PDF not found.');
+    const event = parseJson(row.data_json);
+    const filename = String(event.documentName || 'event-details.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120) || 'event-details.pdf';
+    res.set('X-Content-Type-Options', 'nosniff').set('Cache-Control', 'public, max-age=3600')
+      .set('Content-Disposition', `attachment; filename="${filename}"`).type('application/pdf').send(row.image);
+  });
 
   router.get('/editorial/images/:id', async (req, res) => {
     const [[image]] = await db.execute('SELECT mime_type, image FROM editorial_images WHERE id = ?', [req.params.id]);
@@ -669,18 +737,30 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const [rows] = await db.execute("SELECT e.*, (SELECT COUNT(*) FROM event_registrations r WHERE BINARY r.event_id = BINARY e.id) + (SELECT COUNT(*) FROM event_external_registrations er WHERE BINARY er.event_id = BINARY e.id) AS registered_count FROM events e WHERE e.status = 'approved' AND e.deleted_at IS NULL ORDER BY CASE WHEN e.display_order > 0 THEN 0 ELSE 1 END, e.display_order ASC, e.created_at DESC LIMIT 500");
     res.json({ events: rows.map((row) => ({ ...parseJson(row.data_json), id: row.id, registeredCount: Number(row.registered_count), displayOrder: Number(row.display_order || 0) })) });
   });
+  router.post('/events/document', companyOnly, express.raw({ type: 'application/pdf', limit: '10mb' }), eventPdfUpload(db));
   router.post('/events', companyOnly, async (req, res) => {
     const event = req.body?.event || {};
     if (!event.title?.trim() || !event.date || !event.venue?.trim()) return fail(res, 400, 'Event name, date and venue are required.');
     const eventLocation = eventLocationOf(event);
     if (!eventLocation.district || (eventLocation.district !== 'All India' && !eventLocation.state)) return fail(res, 400, 'Choose a state and district, or choose All India for a nationwide event.');
     if (new Date(event.date).getTime() < Date.now() - 86_400_000) return fail(res, 400, 'Choose today or a future date.');
+    let category; let sector; let specialty;
+    try {
+      category = eventTaxonomyValue(event.category, event.categoryOther, 'Community', 'category');
+      sector = eventTaxonomyValue(event.sector, event.sectorOther, '', 'sector');
+      specialty = eventTaxonomyValue(event.specialty, event.specialtyOther, '', 'specialty or activity');
+    } catch (error) { return fail(res, error.status || 400, error.message); }
+    let document;
+    try { document = eventDocumentOf(event); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
+    if (document.documentUrl && !await storedEventDocument(db, document.documentUrl)) return fail(res, 400, 'Upload the PDF again before publishing this event.');
     let registrationUrl;
     try { registrationUrl = registrationUrlOf(event.registrationUrl); }
     catch (error) { return fail(res, error.status || 400, error.message); }
     const id = `happening-${randomUUID()}`;
     const company = await companyById(db, req.accountId);
-    const data = { ...event, ...eventLocation, registrationUrl, id, organizer: company.company_name, organizerId: company.id, source: 'Community', createdByUser: true, registeredCount: 0 };
+    const { categoryOther, sectorOther, specialtyOther, ...eventFields } = event;
+    const data = { ...eventFields, category, sector, specialty, ...document, ...eventLocation, registrationUrl, id, organizer: company.company_name, organizerId: company.id, source: 'Community', createdByUser: true, registeredCount: 0 };
     await db.execute("INSERT INTO events (id, company_id, data_json, status) VALUES (?, ?, ?, 'pending')", [id, req.accountId, JSON.stringify(data)]);
     res.status(201).json({ event: { ...data, status: 'pending' } });
   });
@@ -694,6 +774,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     let data;
     try { data = updatedEventData(req.body?.event, parseJson(event.data_json)); }
     catch (error) { return fail(res, error.status || 400, error.message); }
+    if (data.documentUrl && !await storedEventDocument(db, data.documentUrl)) return fail(res, 400, 'Upload the PDF again before saving this event.');
     await db.execute("UPDATE events SET data_json = ?, status = 'pending', reviewed_at = NULL, reviewed_by = NULL, rejection_reason = NULL WHERE id = ?", [JSON.stringify(data), event.id]);
     res.json({ event: { ...eventOwner(event), ...data, status: 'pending', reviewedAt: null, rejectionReason: '' } });
   });
@@ -771,7 +852,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const username = adminUsernameOf(req.body?.username);
     const [rows] = await db.execute('SELECT * FROM admin_users WHERE username = ?', [username]);
     const admin = rows[0];
-    if (!admin || !verifyPassword(String(req.body?.password || ''), admin.password_hash)) {
+    if (!admin || !['admin', 'super_admin'].includes(admin.role) || !verifyPassword(String(req.body?.password || ''), admin.password_hash)) {
       return fail(res, 401, 'Incorrect username or password.');
     }
     const sessionToken = await createSession(db, req, res, 'super_admin', admin.id);
@@ -789,6 +870,36 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     res.json({ authenticated: true, role: admin.role, username: adminDisplayUsername(admin) });
   });
   router.post('/admin/logout', async (req, res) => { await clearSession(db, req, res, 'super_admin'); res.json({ ok: true }); });
+  router.get('/admin/admin-users', superAdminOnly, async (req, res) => {
+    const [rows] = await db.query('SELECT id, username, email, role, created_at FROM admin_users ORDER BY CASE role WHEN \'super_admin\' THEN 0 WHEN \'admin\' THEN 1 ELSE 2 END, username');
+    res.json({ admins: rows.map((row) => ({ id: row.id, username: adminDisplayUsername(row), email: row.email, role: row.role, createdAt: iso(row.created_at) })) });
+  });
+  router.post('/admin/admin-users', superAdminOnly, async (req, res) => {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const email = emailOf(req.body?.email);
+    if (!/^[a-z0-9 ._-]{3,64}$/i.test(username)) return fail(res, 400, 'Use a username with 3–64 letters, numbers, spaces, dots, underscores or hyphens.');
+    if (password.length < 12 || password.length > 256) return fail(res, 400, 'Use a temporary password with at least 12 characters.');
+    if (email && (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254)) return fail(res, 400, 'Enter a valid email address or leave it blank.');
+    try {
+      const id = randomUUID();
+      await db.execute("INSERT INTO admin_users (id, username, email, password_hash, role) VALUES (?, ?, ?, ?, 'admin')", [id, username, email || null, hashPassword(password)]);
+      const [[created]] = await db.execute('SELECT id, username, email, role, created_at FROM admin_users WHERE id = ?', [id]);
+      res.status(201).json({ admin: { id: created.id, username: created.username, email: created.email, role: created.role, createdAt: iso(created.created_at) } });
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') return fail(res, 409, 'That username or email is already in use.');
+      throw error;
+    }
+  });
+  router.patch('/admin/admin-users/:id/access', superAdminOnly, async (req, res) => {
+    const enabled = req.body?.enabled === true;
+    if (req.params.id === req.accountId) return fail(res, 400, 'You cannot disable your own superadmin access.');
+    const [[target]] = await db.execute('SELECT id, username, email, role, created_at FROM admin_users WHERE id = ?', [req.params.id]);
+    if (!target) return fail(res, 404, 'Admin account not found.');
+    if (target.role === 'super_admin') return fail(res, 403, 'Superadmin access cannot be changed here.');
+    await db.execute('UPDATE admin_users SET role = ? WHERE id = ?', [enabled ? 'admin' : 'disabled', target.id]);
+    res.json({ admin: { id: target.id, username: target.username, email: target.email, role: enabled ? 'admin' : 'disabled', createdAt: iso(target.created_at) } });
+  });
   router.get('/admin/activity', superAdminOnly, async (req, res) => {
     const [adminRows] = await db.query(`SELECT id, username FROM admin_users WHERE role = 'admin'
       ORDER BY CASE LOWER(username)
@@ -964,16 +1075,29 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
   });
+  router.post('/admin/events/document', anyAdmin, express.raw({ type: 'application/pdf', limit: '10mb' }), eventPdfUpload(db));
   router.post('/admin/events', anyAdmin, async (req, res) => {
     const input = req.body || {};
     const title = String(input.title || '').trim().slice(0, 120);
     const organizer = String(input.organizer || '').trim().slice(0, 120);
     const venue = String(input.venue || '').trim().slice(0, 200);
     const date = new Date(input.date);
+    const endDate = eventDateKey(input.endDate ?? input.date);
     const contactPhone = input.contactPhone ? phoneOf(input.contactPhone) : '';
     const image = String(input.image || '').trim().slice(0, 2048);
     const eventLocation = eventLocationOf(input);
+    let category; let sector; let specialty;
+    try {
+      category = eventTaxonomyValue(input.category, input.categoryOther, 'Community', 'category');
+      sector = eventTaxonomyValue(input.sector, input.sectorOther, '', 'sector');
+      specialty = eventTaxonomyValue(input.specialty, input.specialtyOther, '', 'specialty or activity');
+    } catch (error) { return fail(res, error.status || 400, error.message); }
+    let document;
+    try { document = eventDocumentOf(input); }
+    catch (error) { return fail(res, error.status || 400, error.message); }
+    if (document.documentUrl && !await storedEventDocument(db, document.documentUrl)) return fail(res, 400, 'Upload the PDF again before publishing this event.');
     if (!title || !organizer || !venue || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() - 86_400_000) return fail(res, 400, 'Add an event name, organiser, venue and a current or future date.');
+    if (!endDate || endDate < eventDateKey(date)) return fail(res, 400, 'Choose an end date that is the same as or after the start date.');
     if (!eventLocation.district || (eventLocation.district !== 'All India' && !eventLocation.state)) return fail(res, 400, 'Choose a state and district, or choose All India for a nationwide event.');
     if (contactPhone && !/^[6-9]\d{9}$/.test(contactPhone)) return fail(res, 400, 'Enter a valid 10-digit contact number.');
     if (image && !/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image)) return fail(res, 400, 'Use an HTTPS image URL or upload an image.');
@@ -986,9 +1110,9 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     }
     const id = `happening-${randomUUID()}`;
     const reviewedAt = mysqlDate(new Date());
-    const data = { id, title, organizer, venue, ...eventLocation, date: date.toISOString(), time: String(input.time || '').trim().slice(0, 20),
-      category: String(input.category || 'Community').trim().slice(0, 80), sector: String(input.sector || '').trim().slice(0, 80),
-      specialty: String(input.specialty || '').trim().slice(0, 80), description: String(input.description || '').trim().slice(0, 1200),
+    const data = { id, title, organizer, venue, ...eventLocation, date: date.toISOString(), endDate, time: String(input.time || '').trim().slice(0, 20),
+      category, sector,
+      specialty, ...document, description: String(input.description || '').trim().slice(0, 1200),
       contactPhone, image, registrationUrl, source: 'Hapzo360', createdByUser: true, createdByAdmin: true, registeredCount: 0 };
     const connection = await db.getConnection();
     try {
@@ -1052,6 +1176,7 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     let data;
     try { data = updatedEventData(req.body?.event, parseJson(event.data_json), { allowOrganizer: true }); }
     catch (error) { return fail(res, error.status || 400, error.message); }
+    if (data.documentUrl && !await storedEventDocument(db, data.documentUrl)) return fail(res, 400, 'Upload the PDF again before saving this event.');
     await db.execute('UPDATE events SET data_json = ? WHERE id = ?', [JSON.stringify(data), event.id]);
     res.json({ event: { ...eventOwner(event), ...data } });
   });
@@ -1174,6 +1299,11 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const [rows] = await db.query('SELECT id, domain, title, description, image_url, published_at FROM editorial_posts ORDER BY published_at DESC LIMIT 100');
     res.json({ posts: rows.map((row) => ({ id: row.id, domain: row.domain, title: row.title, description: row.description, image: row.image_url, publishedAt: iso(row.published_at) })) });
   });
+  router.get('/admin/editorial/:id', anyAdmin, async (req, res) => {
+    const [[row]] = await db.execute('SELECT id, domain, title, description, body, image_url, published_at FROM editorial_posts WHERE id = ?', [req.params.id]);
+    if (!row) return fail(res, 404, 'Story not found.');
+    res.json({ post: { id: row.id, domain: row.domain, title: row.title, description: row.description, body: row.body, image: row.image_url, publishedAt: iso(row.published_at) } });
+  });
   router.post('/admin/editorial/image', anyAdmin, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '5mb' }), async (req, res) => {
     const mime = String(req.get('content-type') || '').split(';')[0].toLowerCase();
     const bytes = req.body;
@@ -1202,6 +1332,25 @@ export function platformRoutes(db, { getExternalStats = () => ({}), verifyIdenti
     const id = randomUUID();
     await db.execute('INSERT INTO editorial_posts (id, domain, title, description, body, image_url, author_id) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, domain, title, description, body, image || null, req.accountId]);
     res.status(201).json({ post: { id, domain, title, description, image: image || null, publishedAt: now() } });
+  });
+  router.patch('/admin/editorial/:id', anyAdmin, async (req, res) => {
+    const domain = String(req.body?.domain || '').trim();
+    const title = String(req.body?.title || '').trim();
+    const description = String(req.body?.description || '').trim();
+    const body = String(req.body?.body || '').trim();
+    const image = String(req.body?.image || '').trim();
+    if (!['all', 'technology'].includes(domain)) return fail(res, 400, 'Choose Trends or Technologies.');
+    if (!title || title.length > 255 || !description || description.length > 2000 || !body || body.length > 30000) return fail(res, 400, 'Add a title, summary and article within the allowed lengths.');
+    if (image && (!/^https:\/\//i.test(image) && !/^\/api\/editorial\/images\/[0-9a-f-]{36}$/i.test(image) || image.length > 2048)) return fail(res, 400, 'Use an HTTPS image URL or upload an image.');
+    if (image.startsWith('/api/editorial/images/')) {
+      const [[savedImage]] = await db.execute('SELECT id FROM editorial_images WHERE id = ?', [image.split('/').at(-1)]);
+      if (!savedImage) return fail(res, 400, 'Upload the image again.');
+    }
+    const [[existing]] = await db.execute('SELECT id FROM editorial_posts WHERE id = ?', [req.params.id]);
+    if (!existing) return fail(res, 404, 'Story not found.');
+    await db.execute('UPDATE editorial_posts SET domain = ?, title = ?, description = ?, body = ?, image_url = ? WHERE id = ?', [domain, title, description, body, image || null, req.params.id]);
+    const [[updated]] = await db.execute('SELECT id, published_at FROM editorial_posts WHERE id = ?', [req.params.id]);
+    res.json({ post: { id: updated.id, domain, title, description, body, image: image || null, publishedAt: iso(updated.published_at) } });
   });
   router.delete('/admin/editorial/:id', anyAdmin, async (req, res) => {
     const [[post]] = await db.execute('SELECT image_url FROM editorial_posts WHERE id = ?', [req.params.id]);
